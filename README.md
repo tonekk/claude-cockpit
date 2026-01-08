@@ -4,6 +4,8 @@ A TUI tool for managing git worktrees with Claude Code integration. View all you
 
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)
 
+![worktree-dashboard screenshot](screenshot.png)
+
 ## Features
 
 - List all git worktrees with branch names
