@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/foodstarter/worktree-dashboard/internal/context"
 	"github.com/foodstarter/worktree-dashboard/internal/tmux"
+	"github.com/foodstarter/worktree-dashboard/internal/waiting"
 	"github.com/foodstarter/worktree-dashboard/internal/worktree"
 )
 
@@ -24,12 +26,13 @@ type Item struct {
 
 // Model is the bubbletea model
 type Model struct {
-	items       []Item
-	cursor      int
-	projectRoot string
-	width       int
-	height      int
-	err         error
+	items           []Item
+	cursor          int
+	projectRoot     string
+	width           int
+	height          int
+	err             error
+	waitingSessions map[string]bool // paths with sessions waiting for input
 }
 
 // KeyMap defines keyboard shortcuts
@@ -115,6 +118,10 @@ var (
 
 	deletedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("203")) // red
+
+	waitingStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")). // yellow/amber
+			Bold(true)
 )
 
 // New creates a new TUI model
@@ -126,7 +133,10 @@ func New(projectRoot string) Model {
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
-	return m.loadWorktrees
+	return tea.Batch(
+		m.loadWorktrees,
+		tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) }),
+	)
 }
 
 func (m Model) loadWorktrees() tea.Msg {
@@ -166,6 +176,8 @@ type errMsg struct {
 	err error
 }
 
+type tickMsg time.Time
+
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -178,6 +190,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case errMsg:
 		m.err = msg.err
+
+	case tickMsg:
+		// Poll for waiting sessions
+		paths, _ := waiting.ListWaiting()
+		m.waitingSessions = make(map[string]bool)
+		for _, p := range paths {
+			m.waitingSessions[p] = true
+		}
+		// Continue polling
+		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
 	case tea.KeyMsg:
 		switch {
@@ -260,10 +282,17 @@ func (m Model) renderItem(item Item, isSelected bool) string {
 		issueID = "main"
 	}
 
-	// First line: indicator, issue ID, branch
-	line1 := fmt.Sprintf("%s %s  %s",
+	// Check if session is waiting for input
+	waitingBadge := ""
+	if m.waitingSessions[item.Worktree.Path] {
+		waitingBadge = " " + waitingStyle.Render("⏳")
+	}
+
+	// First line: indicator, issue ID, waiting badge, branch
+	line1 := fmt.Sprintf("%s %s%s  %s",
 		indicator,
 		issueStyle.Render(issueID),
+		waitingBadge,
 		branchStyle.Render(item.Worktree.Branch),
 	)
 

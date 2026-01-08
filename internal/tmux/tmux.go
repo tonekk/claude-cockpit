@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const WaitingSuffix = " 🔴"
+
 // IsInsideTmux returns true if we're running inside a tmux session
 func IsInsideTmux() bool {
 	return os.Getenv("TMUX") != ""
@@ -48,15 +50,13 @@ func SendKeys(keys string) error {
 
 // OpenWorktree opens a worktree in a tmux window, running claude with restore-context
 func OpenWorktree(issueID, worktreePath string) error {
-	windowName := issueID
-
-	// Check if window already exists
-	if WindowExists(windowName) {
-		return SelectWindow(windowName)
+	// Check if window already exists (with or without waiting prefix)
+	if actualName, found := FindWindowByIssueID(issueID); found {
+		return SelectWindow(actualName)
 	}
 
 	// Create new window
-	if err := NewWindow(windowName, worktreePath); err != nil {
+	if err := NewWindow(issueID, worktreePath); err != nil {
 		return err
 	}
 
@@ -86,4 +86,60 @@ func StartSession(sessionName string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// FindWindowByIssueID finds a tmux window by issue ID, checking both with and without waiting suffix
+// Returns the actual window name and whether it was found
+func FindWindowByIssueID(issueID string) (string, bool) {
+	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_name}")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", false
+	}
+
+	windows := strings.Split(strings.TrimSpace(string(output)), "\n")
+	waitingName := issueID + WaitingSuffix
+
+	for _, w := range windows {
+		if w == issueID || w == waitingName {
+			return w, true
+		}
+	}
+	return "", false
+}
+
+// RenameWindow renames a tmux window
+func RenameWindow(oldName, newName string) error {
+	cmd := exec.Command("tmux", "rename-window", "-t", oldName, newName)
+	return cmd.Run()
+}
+
+// MarkWindowWaiting adds the waiting suffix to a window's name
+func MarkWindowWaiting(issueID string) error {
+	currentName, found := FindWindowByIssueID(issueID)
+	if !found {
+		return nil // Window doesn't exist, nothing to do
+	}
+
+	// Already has waiting suffix
+	if strings.HasSuffix(currentName, WaitingSuffix) {
+		return nil
+	}
+
+	return RenameWindow(currentName, issueID+WaitingSuffix)
+}
+
+// ClearWindowWaiting removes the waiting suffix from a window's name
+func ClearWindowWaiting(issueID string) error {
+	currentName, found := FindWindowByIssueID(issueID)
+	if !found {
+		return nil // Window doesn't exist, nothing to do
+	}
+
+	// Doesn't have waiting suffix
+	if !strings.HasSuffix(currentName, WaitingSuffix) {
+		return nil
+	}
+
+	return RenameWindow(currentName, issueID)
 }

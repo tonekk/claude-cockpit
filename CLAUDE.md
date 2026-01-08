@@ -12,10 +12,12 @@
 
 ## Build Instructions
 
-**Always run after making changes:**
+**Always build AND install after making changes:**
 ```bash
 go build -o worktree-dashboard ./cmd/worktree-dashboard && go install ./cmd/worktree-dashboard
 ```
+
+Never just build without installing - the user runs the installed binary.
 
 Individual commands:
 ```bash
