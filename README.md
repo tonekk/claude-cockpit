@@ -7,7 +7,8 @@ A TUI tool for managing git worktrees with Claude Code integration. View all you
 ## Features
 
 - List all git worktrees with branch names
-- Show git status (modified files, ahead/behind remote)
+- Show git status with breakdown (+staged, ~modified, ?untracked)
+- Inline expandable file tree with git status indicators (A, M, D, ?)
 - Detect saved Claude context files per issue
 - Open worktrees in tmux with automatic context restoration
 - Extract issue IDs from branch names (e.g., `feature/SH-431-foo` → `SH-431`)
@@ -42,6 +43,8 @@ worktree-dashboard --list
 |-----|--------|
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
+| `l` / `→` | Expand file tree |
+| `h` / `←` | Collapse file tree |
 | `Enter` | Open worktree in tmux with context restore |
 | `q` | Quit |
 

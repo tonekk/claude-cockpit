@@ -16,12 +16,22 @@ type Worktree struct {
 	GitStatus Status
 }
 
+// FileStatus represents the status of a single file
+type FileStatus struct {
+	Path     string
+	Staged   byte // ' ', 'M', 'A', 'D', 'R', 'C', 'U'
+	Unstaged byte // ' ', 'M', 'D', '?'
+}
+
 // Status represents the git status of a worktree
 type Status struct {
-	Clean         bool
-	ModifiedFiles int
-	Ahead         int
-	Behind        int
+	Clean        bool
+	Files        []FileStatus
+	StagedCount  int
+	ModifiedCount int // unstaged modifications
+	UntrackedCount int
+	Ahead        int
+	Behind       int
 }
 
 var issueIDRegex = regexp.MustCompile(`SH-\d+`)
@@ -83,7 +93,7 @@ func parseWorktreeList(output string) ([]Worktree, error) {
 func GetStatus(worktreePath string) (Status, error) {
 	status := Status{Clean: true}
 
-	// Get modified files count
+	// Get modified files with details
 	cmd := exec.Command("git", "status", "--porcelain")
 	cmd.Dir = worktreePath
 	output, err := cmd.Output()
@@ -92,9 +102,45 @@ func GetStatus(worktreePath string) (Status, error) {
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	if len(lines) > 0 && lines[0] != "" {
+	for _, line := range lines {
+		if len(line) < 3 {
+			continue
+		}
+
+		// Format: "XY PATH" where XY is 2-char status, space, then path
+		// X = staging area, Y = working tree
+		x := line[0]
+		y := line[1]
+		// Path starts after "XY " - use position 2 and trim space
+		filename := strings.TrimPrefix(line[2:], " ")
+
+		// Handle renames: "R  old -> new"
+		if idx := strings.Index(filename, " -> "); idx != -1 {
+			filename = filename[idx+4:]
+		}
+
+		fs := FileStatus{
+			Path:     filename,
+			Staged:   x,
+			Unstaged: y,
+		}
+		status.Files = append(status.Files, fs)
+
+		// Count by category
+		if x == '?' && y == '?' {
+			status.UntrackedCount++
+		} else {
+			if x != ' ' && x != '?' {
+				status.StagedCount++
+			}
+			if y != ' ' && y != '?' {
+				status.ModifiedCount++
+			}
+		}
+	}
+
+	if len(status.Files) > 0 {
 		status.Clean = false
-		status.ModifiedFiles = len(lines)
 	}
 
 	// Get ahead/behind info

@@ -10,16 +10,22 @@
 - **TUI Framework:** [bubbletea](https://github.com/charmbracelet/bubbletea) + [lipgloss](https://github.com/charmbracelet/lipgloss)
 - **Build:** Standard Go toolchain
 
-## Development Commands
+## Build Instructions
+
+**Always run after making changes:**
+```bash
+go build -o worktree-dashboard ./cmd/worktree-dashboard && go install ./cmd/worktree-dashboard
+```
+
+Individual commands:
+```bash
+go build -o worktree-dashboard ./cmd/worktree-dashboard  # Build local binary
+go install ./cmd/worktree-dashboard                       # Install to $GOPATH/bin
+```
+
+## Running
 
 ```bash
-# Build
-go build -o worktree-dashboard ./cmd/worktree-dashboard
-
-# Install globally
-go install ./cmd/worktree-dashboard
-
-# Run (from any git repo with worktrees)
 worktree-dashboard        # Interactive TUI
 worktree-dashboard --list # Non-interactive list
 ```
@@ -39,7 +45,7 @@ internal/
 
 ### Worktree Package (`internal/worktree`)
 - `List(repoPath)` - Parses `git worktree list --porcelain`
-- `GetStatus(path)` - Gets modified file count, ahead/behind from `git status`
+- `GetStatus(path)` - Returns `Status` with `[]FileStatus` (path + staged/unstaged indicators), counts, ahead/behind
 - Extracts issue IDs (e.g., `SH-429`) from branch names or paths
 
 ### Context Package (`internal/context`)
@@ -53,8 +59,9 @@ internal/
 
 ### TUI Package (`internal/tui`)
 - Bubbletea model with items (worktrees + context info)
-- Keys: j/k navigate, Enter opens in tmux, q quits
-- Shows: issue ID, branch, git status, context status
+- Inline expandable file tree with git status indicators
+- Keys: j/k navigate, l/→ expand, h/← collapse, Enter opens in tmux, q quits
+- Shows: issue ID, branch, file counts (+staged, ~modified, ?untracked), context status
 
 ## Key Behaviors
 

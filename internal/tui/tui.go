@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -17,6 +19,7 @@ type Item struct {
 	Worktree   worktree.Worktree
 	HasContext bool
 	Context    *context.Context
+	Expanded   bool
 }
 
 // Model is the bubbletea model
@@ -31,11 +34,12 @@ type Model struct {
 
 // KeyMap defines keyboard shortcuts
 type KeyMap struct {
-	Up     key.Binding
-	Down   key.Binding
-	Enter  key.Binding
-	Delete key.Binding
-	Quit   key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	Enter   key.Binding
+	Expand  key.Binding
+	Collapse key.Binding
+	Quit    key.Binding
 }
 
 var keys = KeyMap{
@@ -51,9 +55,13 @@ var keys = KeyMap{
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "open in tmux"),
 	),
-	Delete: key.NewBinding(
-		key.WithKeys("d"),
-		key.WithHelp("d", "delete"),
+	Expand: key.NewBinding(
+		key.WithKeys("l", "right"),
+		key.WithHelp("l/→", "expand"),
+	),
+	Collapse: key.NewBinding(
+		key.WithKeys("h", "left"),
+		key.WithHelp("h/←", "collapse"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -74,9 +82,6 @@ var (
 			Background(lipgloss.Color("236")).
 			Padding(0, 1)
 
-	normalStyle = lipgloss.NewStyle().
-			Padding(0, 1)
-
 	issueStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("39"))
@@ -87,9 +92,6 @@ var (
 	cleanStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("42"))
 
-	dirtyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214"))
-
 	contextStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243")).
 			Italic(true)
@@ -98,10 +100,21 @@ var (
 			Foreground(lipgloss.Color("241")).
 			MarginTop(1)
 
-	boxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("62")).
-			Padding(1, 2)
+	treeStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("237"))
+
+	// Status colors
+	stagedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("42")) // green
+
+	modifiedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("214")) // orange
+
+	untrackedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243")) // gray
+
+	deletedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("203")) // red
 )
 
 // New creates a new TUI model
@@ -171,6 +184,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 
+		case key.Matches(msg, keys.Expand):
+			if len(m.items) > 0 {
+				m.items[m.cursor].Expanded = true
+			}
+
+		case key.Matches(msg, keys.Collapse):
+			if len(m.items) > 0 {
+				m.items[m.cursor].Expanded = false
+			}
+
 		case key.Matches(msg, keys.Up):
 			if m.cursor > 0 {
 				m.cursor--
@@ -210,62 +233,209 @@ func (m Model) View() string {
 	b.WriteString("\n\n")
 
 	for i, item := range m.items {
-		cursor := "  "
-		style := normalStyle
-		if i == m.cursor {
-			cursor = "▸ "
-			style = selectedStyle
-		}
-
-		// First line: issue ID and branch
-		issueID := item.Worktree.IssueID
-		if issueID == "" {
-			issueID = "main"
-		}
-
-		line1 := fmt.Sprintf("%s%s  %s",
-			cursor,
-			issueStyle.Render(issueID),
-			branchStyle.Render(item.Worktree.Branch),
-		)
-
-		// Second line: status info
-		var statusParts []string
-
-		if item.Worktree.GitStatus.Clean {
-			statusParts = append(statusParts, cleanStyle.Render("✓ clean"))
-		} else {
-			statusParts = append(statusParts, dirtyStyle.Render(fmt.Sprintf("● %d modified", item.Worktree.GitStatus.ModifiedFiles)))
-		}
-
-		if item.Worktree.GitStatus.Ahead > 0 {
-			statusParts = append(statusParts, fmt.Sprintf("↑%d", item.Worktree.GitStatus.Ahead))
-		}
-		if item.Worktree.GitStatus.Behind > 0 {
-			statusParts = append(statusParts, fmt.Sprintf("↓%d", item.Worktree.GitStatus.Behind))
-		}
-
-		if item.HasContext {
-			statusParts = append(statusParts, contextStyle.Render("[context saved]"))
-		} else {
-			statusParts = append(statusParts, contextStyle.Render("[no context]"))
-		}
-
-		line2 := "     " + strings.Join(statusParts, "   ")
-
-		if i == m.cursor {
-			b.WriteString(style.Render(line1))
-		} else {
-			b.WriteString(line1)
-		}
-		b.WriteString("\n")
-		b.WriteString(line2)
-		b.WriteString("\n\n")
+		isSelected := i == m.cursor
+		b.WriteString(m.renderItem(item, isSelected))
 	}
 
 	// Help
-	help := "[enter] open in tmux   [j/k] navigate   [q] quit"
+	help := "[enter] open   [l/→] expand   [h/←] collapse   [j/k] navigate   [q] quit"
 	b.WriteString(helpStyle.Render(help))
 
 	return b.String()
+}
+
+func (m Model) renderItem(item Item, isSelected bool) string {
+	var b strings.Builder
+	status := item.Worktree.GitStatus
+
+	// Expand indicator (selection shown by highlight)
+	indicator := "▸"
+	if item.Expanded {
+		indicator = "▾"
+	}
+
+	// Issue ID
+	issueID := item.Worktree.IssueID
+	if issueID == "" {
+		issueID = "main"
+	}
+
+	// First line: indicator, issue ID, branch
+	line1 := fmt.Sprintf("%s %s  %s",
+		indicator,
+		issueStyle.Render(issueID),
+		branchStyle.Render(item.Worktree.Branch),
+	)
+
+	if isSelected {
+		b.WriteString(selectedStyle.Render(line1))
+	} else {
+		b.WriteString(line1)
+	}
+	b.WriteString("\n")
+
+	// Second line: status summary
+	var statusParts []string
+
+	if status.Clean {
+		statusParts = append(statusParts, cleanStyle.Render("✓ clean"))
+	} else {
+		totalFiles := len(status.Files)
+		statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
+
+		if status.StagedCount > 0 {
+			statusParts = append(statusParts, stagedStyle.Render(fmt.Sprintf("+%d staged", status.StagedCount)))
+		}
+		if status.ModifiedCount > 0 {
+			statusParts = append(statusParts, modifiedStyle.Render(fmt.Sprintf("~%d modified", status.ModifiedCount)))
+		}
+		if status.UntrackedCount > 0 {
+			statusParts = append(statusParts, untrackedStyle.Render(fmt.Sprintf("?%d untracked", status.UntrackedCount)))
+		}
+	}
+
+	if status.Ahead > 0 {
+		statusParts = append(statusParts, fmt.Sprintf("↑%d", status.Ahead))
+	}
+	if status.Behind > 0 {
+		statusParts = append(statusParts, fmt.Sprintf("↓%d", status.Behind))
+	}
+
+	if item.HasContext {
+		statusParts = append(statusParts, contextStyle.Render("[context]"))
+	}
+
+	line2 := "    " + strings.Join(statusParts, "  ")
+	b.WriteString(line2)
+	b.WriteString("\n")
+
+	// Expanded file tree
+	if item.Expanded && !status.Clean {
+		treeLines := renderFileTree(status.Files)
+		for _, line := range treeLines {
+			b.WriteString("    " + line + "\n")
+		}
+	}
+
+	b.WriteString("\n")
+	return b.String()
+}
+
+// renderFileTree renders all files as a unified tree with status indicators
+func renderFileTree(files []worktree.FileStatus) []string {
+	if len(files) == 0 {
+		return nil
+	}
+
+	// Sort files by path
+	sorted := make([]worktree.FileStatus, len(files))
+	copy(sorted, files)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Path < sorted[j].Path
+	})
+
+	// Group by top-level directory
+	type dirGroup struct {
+		files []worktree.FileStatus
+	}
+	dirs := make(map[string]*dirGroup)
+	var rootFiles []worktree.FileStatus
+	var dirOrder []string
+
+	for _, f := range sorted {
+		parts := strings.SplitN(f.Path, string(filepath.Separator), 2)
+		if len(parts) == 1 {
+			// Root-level file
+			rootFiles = append(rootFiles, f)
+		} else {
+			topDir := parts[0]
+			if dirs[topDir] == nil {
+				dirs[topDir] = &dirGroup{}
+				dirOrder = append(dirOrder, topDir)
+			}
+			dirs[topDir].files = append(dirs[topDir].files, f)
+		}
+	}
+
+	var lines []string
+	totalItems := len(dirOrder) + len(rootFiles)
+	itemIdx := 0
+
+	// Render directories
+	for _, dirName := range dirOrder {
+		itemIdx++
+		isLast := itemIdx == totalItems
+
+		prefix := "├── "
+		childPrefix := "│   "
+		if isLast {
+			prefix = "└── "
+			childPrefix = "    "
+		}
+
+		lines = append(lines, treeStyle.Render(prefix)+dirName+"/")
+
+		// Render files in this directory
+		dirFiles := dirs[dirName].files
+		for j, f := range dirFiles {
+			fileIsLast := j == len(dirFiles)-1
+			filePrefix := childPrefix + "├── "
+			if fileIsLast {
+				filePrefix = childPrefix + "└── "
+			}
+
+			// Get just the filename part after the directory
+			name := strings.TrimPrefix(f.Path, dirName+string(filepath.Separator))
+			styledFile := renderFileWithStatus(name, f)
+			lines = append(lines, treeStyle.Render(filePrefix)+styledFile)
+		}
+	}
+
+	// Render root-level files
+	for _, f := range rootFiles {
+		itemIdx++
+		isLast := itemIdx == totalItems
+
+		prefix := "├── "
+		if isLast {
+			prefix = "└── "
+		}
+
+		styledFile := renderFileWithStatus(f.Path, f)
+		lines = append(lines, treeStyle.Render(prefix)+styledFile)
+	}
+
+	return lines
+}
+
+// renderFileWithStatus renders a filename with its status indicator
+func renderFileWithStatus(name string, f worktree.FileStatus) string {
+	// Determine the status indicator and style
+	var indicator string
+	var style lipgloss.Style
+
+	if f.Staged == '?' && f.Unstaged == '?' {
+		// Untracked
+		indicator = " ?"
+		style = untrackedStyle
+	} else if f.Staged != ' ' && f.Unstaged != ' ' && f.Unstaged != '?' {
+		// Both staged and unstaged changes
+		indicator = fmt.Sprintf(" %c%c", f.Staged, f.Unstaged)
+		style = modifiedStyle
+	} else if f.Staged != ' ' && f.Staged != '?' {
+		// Staged only
+		indicator = fmt.Sprintf(" %c", f.Staged)
+		style = stagedStyle
+	} else if f.Unstaged != ' ' && f.Unstaged != '?' {
+		// Unstaged only
+		indicator = fmt.Sprintf(" %c", f.Unstaged)
+		style = modifiedStyle
+	}
+
+	// Use deleted style for deletions
+	if f.Staged == 'D' || f.Unstaged == 'D' {
+		style = deletedStyle
+	}
+
+	return style.Render(name + indicator)
 }
