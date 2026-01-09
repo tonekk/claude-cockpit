@@ -3,6 +3,7 @@ package tmux
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -155,8 +156,16 @@ func StartServerSplit(workDir, serverCommand string) (string, error) {
 		StopServerSplit()
 	}
 
+	// Check if .mise.toml exists in workDir and mise is available - if so, wrap with mise exec
+	finalCommand := serverCommand
+	if _, err := os.Stat(filepath.Join(workDir, ".mise.toml")); err == nil {
+		if _, err := exec.LookPath("mise"); err == nil {
+			finalCommand = "mise exec -- " + serverCommand
+		}
+	}
+
 	// Create horizontal split (left/right) with the server command
-	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir, "-P", "-F", "#{pane_id}", serverCommand)
+	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir, "-P", "-F", "#{pane_id}", finalCommand)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
