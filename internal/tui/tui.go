@@ -111,10 +111,8 @@ var (
 			MarginBottom(1)
 
 	selectedStyle = lipgloss.NewStyle().
-			Bold(true).
 			Foreground(lipgloss.Color("212")).
-			Background(lipgloss.Color("236")).
-			Padding(0, 1)
+			Bold(true)
 
 	issueStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -531,20 +529,22 @@ func (m Model) renderItem(item Item, isSelected bool) string {
 		serverBadge = " " + serverRunningStyle.Render("▶")
 	}
 
+	// Color the indicator when selected
+	styledIndicator := indicator
+	if isSelected {
+		styledIndicator = selectedStyle.Render(indicator)
+	}
+
 	// First line: indicator, issue ID, badges, branch
 	line1 := fmt.Sprintf("%s %s%s%s  %s",
-		indicator,
+		styledIndicator,
 		issueStyle.Render(issueID),
 		serverBadge,
 		waitingBadge,
 		branchStyle.Render(item.Worktree.Branch),
 	)
 
-	if isSelected {
-		b.WriteString(selectedStyle.Render(line1))
-	} else {
-		b.WriteString(line1)
-	}
+	b.WriteString(line1)
 	b.WriteString("\n")
 
 	// Second line: status summary
