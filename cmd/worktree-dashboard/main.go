@@ -119,6 +119,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Validate .claude directory exists
+	claudeDir := filepath.Join(projectRoot, ".claude")
+	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Error: .claude directory not found in %s\n", projectRoot)
+		fmt.Fprintf(os.Stderr, "Run 'mkdir .claude' to create it, or start from a Claude-enabled project.\n")
+		os.Exit(1)
+	}
+
+	// Set project root for tmux package so it can set env vars
+	tmux.ProjectRoot = projectRoot
+
 	if *listFlag {
 		listWorktrees(projectRoot)
 		return
@@ -233,10 +244,14 @@ func handleNotifyWaiting() {
 		os.Exit(1)
 	}
 
-	projectRoot, err := findProjectRootFrom(data.Cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
-		os.Exit(1)
+	// Use WORKTREE_DASHBOARD_PROJECT if set, otherwise find from cwd
+	projectRoot := os.Getenv("WORKTREE_DASHBOARD_PROJECT")
+	if projectRoot == "" {
+		projectRoot, err = findProjectRootFrom(data.Cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	if err := waiting.MarkWaiting(projectRoot, data.Cwd); err != nil {
@@ -296,10 +311,15 @@ func handleClearWaiting() {
 		os.Exit(1)
 	}
 
-	projectRoot, err := findProjectRootFrom(data.Cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
-		os.Exit(1)
+	// Use WORKTREE_DASHBOARD_PROJECT if set, otherwise find from cwd
+	projectRoot := os.Getenv("WORKTREE_DASHBOARD_PROJECT")
+	if projectRoot == "" {
+		var err error
+		projectRoot, err = findProjectRootFrom(data.Cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	if err := waiting.ClearWaiting(projectRoot, data.Cwd); err != nil {

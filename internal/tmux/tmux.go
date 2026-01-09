@@ -37,9 +37,16 @@ func SelectWindow(windowName string) error {
 	return cmd.Run()
 }
 
+// ProjectRoot is set by the TUI to track which project owns all sessions
+var ProjectRoot string
+
 // NewWindow creates a new tmux window with the given name and working directory
 func NewWindow(windowName, workDir string) error {
 	cmd := exec.Command("tmux", "new-window", "-n", windowName, "-c", workDir)
+	// Set environment variable so hooks know which project to notify
+	if ProjectRoot != "" {
+		cmd.Env = append(os.Environ(), "WORKTREE_DASHBOARD_PROJECT="+ProjectRoot)
+	}
 	return cmd.Run()
 }
 
@@ -112,6 +119,12 @@ func FindWindowByIssueID(issueID string) (string, bool) {
 // RenameWindow renames a tmux window
 func RenameWindow(oldName, newName string) error {
 	cmd := exec.Command("tmux", "rename-window", "-t", oldName, newName)
+	return cmd.Run()
+}
+
+// KillWindow kills a tmux window by name
+func KillWindow(windowName string) error {
+	cmd := exec.Command("tmux", "kill-window", "-t", windowName)
 	return cmd.Run()
 }
 

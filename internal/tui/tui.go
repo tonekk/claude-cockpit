@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -9,9 +10,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/foodstarter/worktree-dashboard/internal/context"
+	"github.com/foodstarter/worktree-dashboard/internal/sessions"
 	"github.com/foodstarter/worktree-dashboard/internal/tmux"
 	"github.com/foodstarter/worktree-dashboard/internal/waiting"
 	"github.com/foodstarter/worktree-dashboard/internal/worktree"
@@ -32,10 +35,20 @@ type Item struct {
 	Expanded   bool
 }
 
+// SessionItem represents an additional session (non-worktree)
+type SessionItem struct {
+	Session    sessions.Session
+	TmuxOpen   bool // whether tmux window is currently open
+	Expanded   bool
+	GitStatus  *worktree.Status // git status if it's a git repo
+}
+
 // Model is the bubbletea model
 type Model struct {
 	items              []Item
+	sessionItems       []SessionItem
 	cursor             int
+	inSessionsSection  bool // true when cursor is in additional sessions section
 	projectRoot        string
 	width              int
 	height             int
@@ -46,21 +59,25 @@ type Model struct {
 	errorMessage       string // error message to show in popup
 	showHelp           bool   // show help popup
 	showConfig         bool   // show config popup
+	showAddSession     bool   // show add session input
+	addSessionInput    textinput.Model
 }
 
 // KeyMap defines keyboard shortcuts
 type KeyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Enter    key.Binding
-	OpenCode key.Binding
-	Server   key.Binding
-	Shell    key.Binding
-	Expand   key.Binding
-	Collapse key.Binding
-	Help     key.Binding
-	Config   key.Binding
-	Quit     key.Binding
+	Up         key.Binding
+	Down       key.Binding
+	Enter      key.Binding
+	OpenCode   key.Binding
+	Server     key.Binding
+	Shell      key.Binding
+	Expand     key.Binding
+	Collapse   key.Binding
+	Help       key.Binding
+	Config     key.Binding
+	AddSession key.Binding
+	DelSession key.Binding
+	Quit       key.Binding
 }
 
 var keys = KeyMap{
@@ -103,6 +120,14 @@ var keys = KeyMap{
 	Config: key.NewBinding(
 		key.WithKeys("C"),
 		key.WithHelp("C", "config"),
+	),
+	AddSession: key.NewBinding(
+		key.WithKeys("a"),
+		key.WithHelp("a", "add session"),
+	),
+	DelSession: key.NewBinding(
+		key.WithKeys("d"),
+		key.WithHelp("d", "delete session"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -197,13 +222,35 @@ var (
 
 	helpDescStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("252"))
+
+	sessionHeaderStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("243")).
+				Italic(true)
+
+	sessionNameStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("141")). // purple-ish
+				Bold(true)
+
+	sessionPathStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("243"))
+
+	inputPopupStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("212")).
+			Padding(1, 2)
 )
 
 // New creates a new TUI model
 func New(projectRoot string, config Config) Model {
+	ti := textinput.New()
+	ti.Placeholder = "~/path/to/directory"
+	ti.CharLimit = 256
+	ti.Width = 50
+
 	return Model{
-		projectRoot: projectRoot,
-		config:      config,
+		projectRoot:     projectRoot,
+		config:          config,
+		addSessionInput: ti,
 	}
 }
 
@@ -211,6 +258,7 @@ func New(projectRoot string, config Config) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadWorktrees,
+		m.loadSessions,
 		m.loadServerState,
 		tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) }),
 	)
@@ -265,8 +313,37 @@ func (m Model) loadWorktrees() tea.Msg {
 	return itemsMsg{items}
 }
 
+func (m Model) loadSessions() tea.Msg {
+	sessionList, err := sessions.List(m.projectRoot)
+	if err != nil {
+		return nil // Ignore errors, just don't show sessions
+	}
+
+	var items []SessionItem
+	for _, s := range sessionList {
+		item := SessionItem{Session: s}
+
+		// Check if tmux window is open
+		_, item.TmuxOpen = tmux.FindWindowByIssueID(s.Name)
+
+		// Get git status if it's a git repo
+		if _, err := os.Stat(filepath.Join(s.Path, ".git")); err == nil {
+			status, _ := worktree.GetStatus(s.Path)
+			item.GitStatus = &status
+		}
+
+		items = append(items, item)
+	}
+
+	return sessionsMsg{items}
+}
+
 type itemsMsg struct {
 	items []Item
+}
+
+type sessionsMsg struct {
+	items []SessionItem
 }
 
 type errMsg struct {
@@ -280,8 +357,35 @@ type serverStateMsg struct {
 	paneID       string
 }
 
+type sessionAddedMsg struct{}
+type sessionRemovedMsg struct{}
+
+// totalItems returns the total number of selectable items
+func (m Model) totalItems() int {
+	return len(m.items) + len(m.sessionItems)
+}
+
+// getCurrentPath returns the path of the currently selected item
+func (m Model) getCurrentPath() string {
+	if m.inSessionsSection {
+		if m.cursor < len(m.sessionItems) {
+			return m.sessionItems[m.cursor].Session.Path
+		}
+	} else {
+		if m.cursor < len(m.items) {
+			return m.items[m.cursor].Worktree.Path
+		}
+	}
+	return ""
+}
+
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle text input mode
+	if m.showAddSession {
+		return m.updateAddSessionInput(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -289,6 +393,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case itemsMsg:
 		m.items = msg.items
+
+	case sessionsMsg:
+		m.sessionItems = msg.items
+
+	case sessionAddedMsg, sessionRemovedMsg:
+		// Reload sessions after add/remove
+		return m, m.loadSessions
 
 	case errMsg:
 		m.err = msg.err
@@ -310,6 +421,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			waiting.ClearServerState(m.projectRoot)
 		}
 
+		// Update tmux window status for sessions
+		for i := range m.sessionItems {
+			_, m.sessionItems[i].TmuxOpen = tmux.FindWindowByIssueID(m.sessionItems[i].Session.Name)
+		}
+
 		// Continue polling
 		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
@@ -323,13 +439,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// If help popup is showing, close it but continue processing the key
 		if m.showHelp {
 			m.showHelp = false
-			// Don't return - let the key also perform its action
 		}
 
 		// If config popup is showing, close it but continue processing the key
 		if m.showConfig {
 			m.showConfig = false
-			// Don't return - let the key also perform its action
 		}
 
 		switch {
@@ -337,35 +451,104 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.Help):
-			m.showHelp = !m.showHelp // Toggle
+			m.showHelp = !m.showHelp
 			return m, nil
 
 		case key.Matches(msg, keys.Config):
-			m.showConfig = !m.showConfig // Toggle
+			m.showConfig = !m.showConfig
 			return m, nil
 
+		case key.Matches(msg, keys.AddSession):
+			m.showAddSession = true
+			m.addSessionInput.SetValue("")
+			m.addSessionInput.Focus()
+			return m, textinput.Blink
+
+		case key.Matches(msg, keys.DelSession):
+			// Only allow deletion of additional sessions
+			if m.inSessionsSection && m.cursor < len(m.sessionItems) {
+				session := m.sessionItems[m.cursor]
+				// Kill tmux window if open
+				if session.TmuxOpen {
+					tmux.KillWindow(session.Session.Name)
+				}
+				// Remove from sessions file
+				sessions.Remove(m.projectRoot, session.Session.Path)
+				// Adjust cursor if needed
+				if m.cursor >= len(m.sessionItems)-1 && m.cursor > 0 {
+					m.cursor--
+				}
+				// If no more sessions, move back to worktrees section
+				if len(m.sessionItems) <= 1 {
+					m.inSessionsSection = false
+					m.cursor = len(m.items) - 1
+					if m.cursor < 0 {
+						m.cursor = 0
+					}
+				}
+				return m, m.loadSessions
+			}
+
 		case key.Matches(msg, keys.Expand):
-			if len(m.items) > 0 {
+			if m.inSessionsSection {
+				if m.cursor < len(m.sessionItems) {
+					m.sessionItems[m.cursor].Expanded = true
+				}
+			} else if m.cursor < len(m.items) {
 				m.items[m.cursor].Expanded = true
 			}
 
 		case key.Matches(msg, keys.Collapse):
-			if len(m.items) > 0 {
+			if m.inSessionsSection {
+				if m.cursor < len(m.sessionItems) {
+					m.sessionItems[m.cursor].Expanded = false
+				}
+			} else if m.cursor < len(m.items) {
 				m.items[m.cursor].Expanded = false
 			}
 
 		case key.Matches(msg, keys.Up):
-			if m.cursor > 0 {
+			if m.inSessionsSection {
+				if m.cursor > 0 {
+					m.cursor--
+				} else {
+					// Move to worktrees section
+					m.inSessionsSection = false
+					m.cursor = len(m.items) - 1
+					if m.cursor < 0 {
+						m.cursor = 0
+					}
+				}
+			} else if m.cursor > 0 {
 				m.cursor--
 			}
 
 		case key.Matches(msg, keys.Down):
-			if m.cursor < len(m.items)-1 {
-				m.cursor++
+			if m.inSessionsSection {
+				if m.cursor < len(m.sessionItems)-1 {
+					m.cursor++
+				}
+			} else {
+				if m.cursor < len(m.items)-1 {
+					m.cursor++
+				} else if len(m.sessionItems) > 0 {
+					// Move to sessions section
+					m.inSessionsSection = true
+					m.cursor = 0
+				}
 			}
 
 		case key.Matches(msg, keys.Enter):
-			if len(m.items) > 0 {
+			if m.inSessionsSection && m.cursor < len(m.sessionItems) {
+				session := m.sessionItems[m.cursor]
+				// Open or switch to tmux window
+				if session.TmuxOpen {
+					tmux.SelectWindow(session.Session.Name)
+				} else {
+					tmux.NewWindow(session.Session.Name, session.Session.Path)
+					tmux.SendKeys("claude")
+				}
+			} else if m.cursor < len(m.items) {
 				item := m.items[m.cursor]
 				if item.Worktree.IssueID != "" {
 					_ = tmux.OpenWorktree(item.Worktree.IssueID, item.Worktree.Path)
@@ -373,13 +556,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, keys.OpenCode):
-			if len(m.items) > 0 {
-				item := m.items[m.cursor]
-				return m, openEditor(item.Worktree.Path, m.config.Editor)
+			path := m.getCurrentPath()
+			if path != "" {
+				return m, openEditor(path, m.config.Editor)
 			}
 
 		case key.Matches(msg, keys.Server):
-			if len(m.items) > 0 {
+			if !m.inSessionsSection && m.cursor < len(m.items) {
 				item := m.items[m.cursor]
 
 				// Check if server is running in this worktree - toggle off
@@ -407,14 +590,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, keys.Shell):
-			if len(m.items) > 0 {
-				item := m.items[m.cursor]
-				tmux.OpenShellSplit(item.Worktree.Path)
+			path := m.getCurrentPath()
+			if path != "" {
+				tmux.OpenShellSplit(path)
 			}
 		}
 	}
 
 	return m, nil
+}
+
+// updateAddSessionInput handles input when adding a session
+func (m Model) updateAddSessionInput(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "enter":
+			path := m.addSessionInput.Value()
+			if path != "" {
+				// Expand ~ to home directory
+				if strings.HasPrefix(path, "~/") {
+					home, _ := os.UserHomeDir()
+					path = filepath.Join(home, path[2:])
+				}
+				// Validate path exists
+				if _, err := os.Stat(path); err != nil {
+					m.errorMessage = fmt.Sprintf("Path does not exist: %s", path)
+					m.showAddSession = false
+					return m, nil
+				}
+				// Add to sessions
+				if err := sessions.Add(m.projectRoot, path); err != nil {
+					m.errorMessage = fmt.Sprintf("Error adding session: %v", err)
+					m.showAddSession = false
+					return m, nil
+				}
+				m.showAddSession = false
+				return m, m.loadSessions
+			}
+			m.showAddSession = false
+			return m, nil
+
+		case "esc", "ctrl+c":
+			m.showAddSession = false
+			return m, nil
+		}
+	}
+
+	var cmd tea.Cmd
+	m.addSessionInput, cmd = m.addSessionInput.Update(msg)
+	return m, cmd
 }
 
 // openEditor opens the configured editor in the given path
@@ -443,12 +668,29 @@ func (m Model) View() string {
 	b.WriteString("\n\n")
 
 	for i, item := range m.items {
-		isSelected := i == m.cursor
+		isSelected := !m.inSessionsSection && i == m.cursor
 		b.WriteString(m.renderItem(item, isSelected, m.width))
 	}
 
+	// Additional sessions section
+	if len(m.sessionItems) > 0 {
+		b.WriteString(sessionHeaderStyle.Render("── Additional Sessions ──"))
+		b.WriteString("\n\n")
+
+		for i, session := range m.sessionItems {
+			isSelected := m.inSessionsSection && i == m.cursor
+			b.WriteString(m.renderSessionItem(session, isSelected, m.width))
+		}
+	}
+
 	// Minimal help hint
-	b.WriteString(helpStyle.Render("[?] help  [C] config  [q] quit"))
+	b.WriteString(helpStyle.Render("[?] help  [a] add session  [C] config  [q] quit"))
+
+	// Add session input popup
+	if m.showAddSession {
+		b.WriteString("\n\n")
+		b.WriteString(m.renderAddSessionPopup())
+	}
 
 	// Help popup
 	if m.showHelp {
@@ -471,6 +713,98 @@ func (m Model) View() string {
 	return b.String()
 }
 
+// renderAddSessionPopup renders the add session input popup
+func (m Model) renderAddSessionPopup() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("Add Session"))
+	b.WriteString("\n\n")
+	b.WriteString("  Path: ")
+	b.WriteString(m.addSessionInput.View())
+	b.WriteString("\n\n")
+	b.WriteString(helpStyle.Render("  Enter to confirm, Esc to cancel"))
+
+	return inputPopupStyle.Render(b.String())
+}
+
+// renderSessionItem renders an additional session item
+func (m Model) renderSessionItem(item SessionItem, isSelected bool, width int) string {
+	var b strings.Builder
+
+	// Indicator
+	indicator := "▸"
+	if item.Expanded {
+		indicator = "▾"
+	}
+
+	styledIndicator := indicator
+	if isSelected {
+		styledIndicator = selectedStyle.Render(indicator)
+	}
+
+	// Tmux window status
+	windowBadge := ""
+	if item.TmuxOpen {
+		windowBadge = " " + serverRunningStyle.Render("●")
+	}
+
+	// Waiting badge
+	waitingBadge := ""
+	if m.waitingSessions[item.Session.Path] {
+		waitingBadge = " " + waitingStyle.Render("⏳")
+	}
+
+	// First line: indicator, name, badges, path
+	line1 := fmt.Sprintf("%s %s%s%s  %s",
+		styledIndicator,
+		sessionNameStyle.Render(item.Session.Name),
+		windowBadge,
+		waitingBadge,
+		sessionPathStyle.Render(item.Session.Path),
+	)
+
+	b.WriteString(line1)
+	b.WriteString("\n")
+
+	// Second line: status summary (if git repo)
+	var statusParts []string
+	if item.GitStatus != nil {
+		if item.GitStatus.Clean {
+			statusParts = append(statusParts, cleanStyle.Render("✓ clean"))
+		} else {
+			totalFiles := len(item.GitStatus.Files)
+			statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
+
+			if item.GitStatus.StagedCount > 0 {
+				statusParts = append(statusParts, stagedStyle.Render(fmt.Sprintf("+%d staged", item.GitStatus.StagedCount)))
+			}
+			if item.GitStatus.ModifiedCount > 0 {
+				statusParts = append(statusParts, modifiedStyle.Render(fmt.Sprintf("~%d modified", item.GitStatus.ModifiedCount)))
+			}
+			if item.GitStatus.UntrackedCount > 0 {
+				statusParts = append(statusParts, untrackedStyle.Render(fmt.Sprintf("?%d untracked", item.GitStatus.UntrackedCount)))
+			}
+		}
+	} else {
+		statusParts = append(statusParts, contextStyle.Render("(not a git repo)"))
+	}
+
+	line2 := "    " + strings.Join(statusParts, "  ")
+	b.WriteString(line2)
+	b.WriteString("\n")
+
+	// Expanded file tree (if git repo with changes)
+	if item.Expanded && item.GitStatus != nil && !item.GitStatus.Clean {
+		treeLines := renderFileTree(item.GitStatus.Files)
+		for _, line := range treeLines {
+			b.WriteString("    " + line + "\n")
+		}
+	}
+
+	b.WriteString("\n")
+	return b.String()
+}
+
 // renderHelpPopup renders the help popup content
 func (m Model) renderHelpPopup() string {
 	var b strings.Builder
@@ -482,10 +816,12 @@ func (m Model) renderHelpPopup() string {
 		key  string
 		desc string
 	}{
-		{"enter", "Open worktree in tmux with Claude"},
-		{"o", "Open worktree in editor"},
+		{"enter", "Open in tmux with Claude"},
+		{"o", "Open in editor"},
 		{"s", "Start/stop server"},
 		{"c", "Open shell in vertical split"},
+		{"a", "Add additional session"},
+		{"d", "Delete additional session"},
 		{"l / →", "Expand file tree"},
 		{"h / ←", "Collapse file tree"},
 		{"j / k", "Navigate down/up"},
