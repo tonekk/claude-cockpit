@@ -13,6 +13,8 @@ A TUI tool for managing git worktrees with Claude Code integration. View all you
 - Inline expandable file tree with git status indicators (A, M, D, ?)
 - Detect saved Claude context files per issue
 - Open worktrees in tmux with automatic context restoration
+- Open worktrees in your editor (VS Code, etc.)
+- Run server commands in tmux split pane
 - Extract issue IDs from branch names (e.g., `feature/SH-431-foo` → `SH-431`)
 
 ## Installation
@@ -35,19 +37,47 @@ go build -o worktree-dashboard ./cmd/worktree-dashboard
 # Interactive TUI (run from any git repo with worktrees)
 worktree-dashboard
 
+# With server command (runs in tmux split when pressing 's')
+worktree-dashboard -s "bin/rails server"
+
+# With custom editor (default: code)
+worktree-dashboard -e "cursor"
+
 # Non-interactive list
 worktree-dashboard --list
+
+# Show help
+worktree-dashboard --help
 ```
+
+### CLI Options
+
+| Flag | Description |
+|------|-------------|
+| `-s, --server-command` | Server command to run in worktrees |
+| `-e, --editor` | Editor command (default: `code`) |
+| `--list` | List worktrees without TUI |
+| `-h, --help` | Show help |
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `WORKTREE_DASHBOARD_SERVER_COMMAND` | Default server command |
+| `WORKTREE_DASHBOARD_EDITOR` | Default editor command |
 
 ### Keybindings
 
 | Key | Action |
 |-----|--------|
-| `j` / `↓` | Move down |
-| `k` / `↑` | Move up |
+| `Enter` | Open worktree in tmux with Claude |
+| `o` | Open worktree in editor |
+| `s` | Start/stop server in worktree |
 | `l` / `→` | Expand file tree |
 | `h` / `←` | Collapse file tree |
-| `Enter` | Open worktree in tmux with context restore |
+| `j` / `↓` | Move down |
+| `k` / `↑` | Move up |
+| `?` | Show help |
 | `q` | Quit |
 
 ## Required Claude Code Commands
