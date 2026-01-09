@@ -42,8 +42,11 @@ worktree-dashboard
 # With server command (runs in tmux split when pressing 's')
 worktree-dashboard -s "bin/rails server"
 
+# With server environment variables
+worktree-dashboard -s "bin/rails server" -e "RAILS_ENV=development" -e "PORT=3000"
+
 # With custom editor (default: code)
-worktree-dashboard -e "cursor"
+worktree-dashboard -E "cursor"
 
 # Non-interactive list
 worktree-dashboard --list
@@ -57,7 +60,8 @@ worktree-dashboard --help
 | Flag | Description |
 |------|-------------|
 | `-s, --server-command` | Server command to run in worktrees |
-| `-e, --editor` | Editor command (default: `code`) |
+| `-e, --env` | Server env var (KEY=VALUE), can be repeated |
+| `-E, --editor` | Editor command (default: `code`) |
 | `--list` | List worktrees without TUI |
 | `-h, --help` | Show help |
 
@@ -65,8 +69,9 @@ worktree-dashboard --help
 
 | Variable | Description |
 |----------|-------------|
-| `WORKTREE_DASHBOARD_SERVER_COMMAND` | Default server command |
-| `WORKTREE_DASHBOARD_EDITOR` | Default editor command |
+| `WD_SERVER_COMMAND` | Default server command |
+| `WD_EDITOR` | Default editor command |
+| `WD_ENV_<KEY>` | Server env vars (e.g., `WD_ENV_RAILS_ENV=development`) |
 
 ### Keybindings
 
@@ -80,7 +85,7 @@ worktree-dashboard --help
 | `h` / `←` | Collapse file tree |
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
-| `O` | Show options |
+| `C` | Show config |
 | `?` | Show help |
 | `q` | Quit |
 

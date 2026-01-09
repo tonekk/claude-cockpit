@@ -21,6 +21,18 @@ import (
 
 var issueIDRegex = regexp.MustCompile(`SH-\d+`)
 
+// envFlag is a custom flag type for collecting multiple -e KEY=VALUE flags
+type envFlag []string
+
+func (e *envFlag) String() string {
+	return strings.Join(*e, ", ")
+}
+
+func (e *envFlag) Set(value string) error {
+	*e = append(*e, value)
+	return nil
+}
+
 func main() {
 	// Handle subcommands for hooks (before flag parsing)
 	if len(os.Args) > 1 {
@@ -38,10 +50,15 @@ func main() {
 	listFlag := flag.Bool("list", false, "List worktrees without TUI")
 	serverCmd := flag.String("s", "", "Server command to run in worktrees")
 	serverCmdLong := flag.String("server-command", "", "Server command to run in worktrees")
-	editor := flag.String("e", "", "Editor command (default: code)")
+	editor := flag.String("E", "", "Editor command (default: code)")
 	editorLong := flag.String("editor", "", "Editor command (default: code)")
 	helpFlag := flag.Bool("h", false, "Show help")
 	helpFlagLong := flag.Bool("help", false, "Show help")
+
+	// Repeatable -e/--env flags for server environment variables
+	var envFlags envFlag
+	flag.Var(&envFlags, "e", "Server environment variable (KEY=VALUE), can be repeated")
+	flag.Var(&envFlags, "env", "Server environment variable (KEY=VALUE), can be repeated")
 
 	flag.Usage = printUsage
 	flag.Parse()
@@ -57,7 +74,7 @@ func main() {
 		finalServerCmd = *serverCmdLong
 	}
 	if finalServerCmd == "" {
-		finalServerCmd = os.Getenv("WORKTREE_DASHBOARD_SERVER_COMMAND")
+		finalServerCmd = os.Getenv("WD_SERVER_COMMAND")
 	}
 
 	// Resolve editor: flag > env > default
@@ -66,10 +83,33 @@ func main() {
 		finalEditor = *editorLong
 	}
 	if finalEditor == "" {
-		finalEditor = os.Getenv("WORKTREE_DASHBOARD_EDITOR")
+		finalEditor = os.Getenv("WD_EDITOR")
 	}
 	if finalEditor == "" {
 		finalEditor = "code"
+	}
+
+	// Collect server environment variables
+	serverEnv := make(map[string]string)
+
+	// First, collect from WD_ENV_* environment variables
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, "WD_ENV_") {
+			parts := strings.SplitN(env, "=", 2)
+			if len(parts) == 2 {
+				// Strip "WD_ENV_" prefix from key
+				key := strings.TrimPrefix(parts[0], "WD_ENV_")
+				serverEnv[key] = parts[1]
+			}
+		}
+	}
+
+	// Then, apply -e/--env flags (override WD_ENV_* if same key)
+	for _, e := range envFlags {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) == 2 {
+			serverEnv[parts[0]] = parts[1]
+		}
 	}
 
 	// Find the project root (look for .git directory)
@@ -87,6 +127,7 @@ func main() {
 	// Create and run the TUI
 	config := tui.Config{
 		ServerCommand: finalServerCmd,
+		ServerEnv:     serverEnv,
 		Editor:        finalEditor,
 	}
 	m := tui.New(projectRoot, config)
@@ -216,13 +257,15 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -s, --server-command <cmd>  Server command to run in worktrees")
-	fmt.Println("  -e, --editor <cmd>          Editor command (default: code)")
+	fmt.Println("  -e, --env <KEY=VALUE>       Server env var (can be repeated)")
+	fmt.Println("  -E, --editor <cmd>          Editor command (default: code)")
 	fmt.Println("  --list                      List worktrees without TUI")
 	fmt.Println("  -h, --help                  Show this help message")
 	fmt.Println()
 	fmt.Println("Environment variables:")
-	fmt.Println("  WORKTREE_DASHBOARD_SERVER_COMMAND  Server command (overridden by -s)")
-	fmt.Println("  WORKTREE_DASHBOARD_EDITOR          Editor command (overridden by -e)")
+	fmt.Println("  WD_SERVER_COMMAND           Server command (overridden by -s)")
+	fmt.Println("  WD_EDITOR                   Editor command (overridden by -E)")
+	fmt.Println("  WD_ENV_<KEY>                Server env vars (e.g., WD_ENV_RAILS_ENV=development)")
 	fmt.Println()
 	fmt.Println("Keys:")
 	fmt.Println("  enter    Open worktree in tmux with Claude")

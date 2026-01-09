@@ -150,17 +150,28 @@ var ServerPaneID string
 
 // StartServerSplit creates a horizontal split and runs the server command
 // Returns the pane ID of the new split
-func StartServerSplit(workDir, serverCommand string) (string, error) {
+func StartServerSplit(workDir, serverCommand string, envVars map[string]string) (string, error) {
 	// First stop any existing server
 	if ServerPaneID != "" {
 		StopServerSplit()
 	}
 
-	// Check if .mise.toml exists in workDir and mise is available - if so, wrap with mise exec
+	// Build the final command with env vars prefix
 	finalCommand := serverCommand
+
+	// Prepend env vars if any
+	if len(envVars) > 0 {
+		var envParts []string
+		for k, v := range envVars {
+			envParts = append(envParts, k+"="+v)
+		}
+		finalCommand = "env " + strings.Join(envParts, " ") + " " + serverCommand
+	}
+
+	// Check if .mise.toml exists in workDir and mise is available - if so, wrap with mise exec
 	if _, err := os.Stat(filepath.Join(workDir, ".mise.toml")); err == nil {
 		if _, err := exec.LookPath("mise"); err == nil {
-			finalCommand = "mise exec -- " + serverCommand
+			finalCommand = "mise exec -- " + finalCommand
 		}
 	}
 

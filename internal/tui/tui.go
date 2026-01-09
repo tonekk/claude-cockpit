@@ -20,6 +20,7 @@ import (
 // Config holds the TUI configuration
 type Config struct {
 	ServerCommand string
+	ServerEnv     map[string]string
 	Editor        string
 }
 
@@ -44,7 +45,7 @@ type Model struct {
 	serverWorktreePath string // path of worktree where server is running
 	errorMessage       string // error message to show in popup
 	showHelp           bool   // show help popup
-	showOptions        bool   // show options popup
+	showConfig         bool   // show config popup
 }
 
 // KeyMap defines keyboard shortcuts
@@ -58,7 +59,7 @@ type KeyMap struct {
 	Expand   key.Binding
 	Collapse key.Binding
 	Help     key.Binding
-	Options  key.Binding
+	Config   key.Binding
 	Quit     key.Binding
 }
 
@@ -99,9 +100,9 @@ var keys = KeyMap{
 		key.WithKeys("?"),
 		key.WithHelp("?", "help"),
 	),
-	Options: key.NewBinding(
-		key.WithKeys("O"),
-		key.WithHelp("O", "options"),
+	Config: key.NewBinding(
+		key.WithKeys("C"),
+		key.WithHelp("C", "config"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -325,9 +326,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Don't return - let the key also perform its action
 		}
 
-		// If options popup is showing, close it but continue processing the key
-		if m.showOptions {
-			m.showOptions = false
+		// If config popup is showing, close it but continue processing the key
+		if m.showConfig {
+			m.showConfig = false
 			// Don't return - let the key also perform its action
 		}
 
@@ -339,8 +340,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showHelp = !m.showHelp // Toggle
 			return m, nil
 
-		case key.Matches(msg, keys.Options):
-			m.showOptions = !m.showOptions // Toggle
+		case key.Matches(msg, keys.Config):
+			m.showConfig = !m.showConfig // Toggle
 			return m, nil
 
 		case key.Matches(msg, keys.Expand):
@@ -391,12 +392,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Check if server command is configured
 				if m.config.ServerCommand == "" {
-					m.errorMessage = "Error: No server command configured.\nUse -s or --server-command flag, or set WORKTREE_DASHBOARD_SERVER_COMMAND"
+					m.errorMessage = "Error: No server command configured.\nUse -s or --server-command flag, or set WD_SERVER_COMMAND"
 					return m, nil
 				}
 
 				// Start server (will auto-stop existing one)
-				paneID, err := tmux.StartServerSplit(item.Worktree.Path, m.config.ServerCommand)
+				paneID, err := tmux.StartServerSplit(item.Worktree.Path, m.config.ServerCommand, m.config.ServerEnv)
 				if err != nil {
 					m.errorMessage = fmt.Sprintf("Error starting server: %v", err)
 					return m, nil
@@ -447,7 +448,7 @@ func (m Model) View() string {
 	}
 
 	// Minimal help hint
-	b.WriteString(helpStyle.Render("[?] help  [O] options  [q] quit"))
+	b.WriteString(helpStyle.Render("[?] help  [C] config  [q] quit"))
 
 	// Help popup
 	if m.showHelp {
@@ -455,10 +456,10 @@ func (m Model) View() string {
 		b.WriteString(m.renderHelpPopup())
 	}
 
-	// Options popup
-	if m.showOptions {
+	// Config popup
+	if m.showConfig {
 		b.WriteString("\n\n")
-		b.WriteString(m.renderOptionsPopup())
+		b.WriteString(m.renderConfigPopup())
 	}
 
 	// Error popup overlay
@@ -488,7 +489,7 @@ func (m Model) renderHelpPopup() string {
 		{"l / →", "Expand file tree"},
 		{"h / ←", "Collapse file tree"},
 		{"j / k", "Navigate down/up"},
-		{"O", "Show options"},
+		{"C", "Show config"},
 		{"?", "Show this help"},
 		{"q", "Quit"},
 	}
@@ -505,11 +506,11 @@ func (m Model) renderHelpPopup() string {
 	return helpPopupStyle.Render(b.String())
 }
 
-// renderOptionsPopup renders the options popup content
-func (m Model) renderOptionsPopup() string {
+// renderConfigPopup renders the config popup content
+func (m Model) renderConfigPopup() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Options"))
+	b.WriteString(titleStyle.Render("Config"))
 	b.WriteString("\n\n")
 
 	// Server command
@@ -520,6 +521,17 @@ func (m Model) renderOptionsPopup() string {
 		b.WriteString(configNotSetStyle.Render("not set"))
 	}
 	b.WriteString("\n")
+
+	// Server env vars
+	if len(m.config.ServerEnv) > 0 {
+		b.WriteString(fmt.Sprintf("  %s  ", helpKeyStyle.Render("env:")))
+		var envPairs []string
+		for k, v := range m.config.ServerEnv {
+			envPairs = append(envPairs, k+"="+v)
+		}
+		b.WriteString(configValueStyle.Render(strings.Join(envPairs, ", ")))
+		b.WriteString("\n")
+	}
 
 	// Editor
 	b.WriteString(fmt.Sprintf("  %s  ", helpKeyStyle.Render("editor:")))
