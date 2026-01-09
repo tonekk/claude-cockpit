@@ -450,7 +450,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// If error popup is showing, dismiss on any key
 		if m.errorMessage != "" {
 			m.errorMessage = ""
-			return m, nil
+			return m, tea.ClearScreen
 		}
 
 		// If help popup is showing, close it but continue processing the key
