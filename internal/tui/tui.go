@@ -437,6 +437,7 @@ func (m Model) View() string {
 
 	var b strings.Builder
 
+	b.WriteString("\n")
 	b.WriteString(titleStyle.Render("Claude Worktrees"))
 	b.WriteString("\n\n")
 
