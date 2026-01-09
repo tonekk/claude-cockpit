@@ -74,6 +74,7 @@ worktree-dashboard --help
 | `Enter` | Open worktree in tmux with Claude |
 | `o` | Open worktree in editor |
 | `s` | Start/stop server in worktree |
+| `c` | Open shell in vertical split |
 | `l` / `→` | Expand file tree |
 | `h` / `←` | Collapse file tree |
 | `j` / `↓` | Move down |
