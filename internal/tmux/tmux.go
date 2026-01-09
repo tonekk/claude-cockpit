@@ -183,27 +183,38 @@ func StopServerSplit() error {
 	return err
 }
 
+// PaneExists checks if a tmux pane with the given ID exists
+func PaneExists(paneID string) bool {
+	if paneID == "" {
+		return false
+	}
+
+	cmd := exec.Command("tmux", "list-panes", "-a", "-F", "#{pane_id}")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	panes := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, p := range panes {
+		if p == paneID {
+			return true
+		}
+	}
+
+	return false
+}
+
 // IsServerRunning returns true if a server split is currently running
 func IsServerRunning() bool {
 	if ServerPaneID == "" {
 		return false
 	}
 
-	// Check if the pane still exists
-	cmd := exec.Command("tmux", "list-panes", "-F", "#{pane_id}")
-	output, err := cmd.Output()
-	if err != nil {
+	if !PaneExists(ServerPaneID) {
 		ServerPaneID = ""
 		return false
 	}
 
-	panes := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, p := range panes {
-		if p == ServerPaneID {
-			return true
-		}
-	}
-
-	ServerPaneID = ""
-	return false
+	return true
 }

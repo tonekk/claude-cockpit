@@ -128,17 +128,29 @@ func listWorktrees(projectRoot string) {
 }
 
 func findProjectRoot() (string, error) {
+	return findProjectRootFrom("")
+}
+
+func findProjectRootFrom(startDir string) (string, error) {
 	// First try git rev-parse
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	if startDir != "" {
+		cmd.Dir = startDir
+	}
 	output, err := cmd.Output()
 	if err == nil {
 		return strings.TrimSpace(string(output)), nil
 	}
 
-	// Fallback: walk up from current directory
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
+	// Fallback: walk up from directory
+	var dir string
+	if startDir != "" {
+		dir = startDir
+	} else {
+		dir, err = os.Getwd()
+		if err != nil {
+			return "", err
+		}
 	}
 
 	for {
@@ -180,7 +192,13 @@ func handleNotifyWaiting() {
 		os.Exit(1)
 	}
 
-	if err := waiting.MarkWaiting(data.Cwd); err != nil {
+	projectRoot, err := findProjectRootFrom(data.Cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := waiting.MarkWaiting(projectRoot, data.Cwd); err != nil {
 		fmt.Fprintf(os.Stderr, "Error marking waiting: %v\n", err)
 		os.Exit(1)
 	}
@@ -235,7 +253,13 @@ func handleClearWaiting() {
 		os.Exit(1)
 	}
 
-	if err := waiting.ClearWaiting(data.Cwd); err != nil {
+	projectRoot, err := findProjectRootFrom(data.Cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := waiting.ClearWaiting(projectRoot, data.Cwd); err != nil {
 		fmt.Fprintf(os.Stderr, "Error clearing waiting: %v\n", err)
 		os.Exit(1)
 	}

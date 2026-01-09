@@ -194,8 +194,29 @@ func New(projectRoot string, config Config) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadWorktrees,
+		m.loadServerState,
 		tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) }),
 	)
+}
+
+func (m Model) loadServerState() tea.Msg {
+	state, err := waiting.LoadServerState(m.projectRoot)
+	if err != nil || state == nil {
+		return nil
+	}
+
+	// Verify the pane still exists
+	if !tmux.PaneExists(state.PaneID) {
+		waiting.ClearServerState(m.projectRoot)
+		return nil
+	}
+
+	// Restore state
+	tmux.ServerPaneID = state.PaneID
+	return serverStateMsg{
+		worktreePath: state.WorktreePath,
+		paneID:       state.PaneID,
+	}
 }
 
 func (m Model) loadWorktrees() tea.Msg {
@@ -237,6 +258,11 @@ type errMsg struct {
 
 type tickMsg time.Time
 
+type serverStateMsg struct {
+	worktreePath string
+	paneID       string
+}
+
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -250,9 +276,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg.err
 
+	case serverStateMsg:
+		m.serverWorktreePath = msg.worktreePath
+
 	case tickMsg:
 		// Poll for waiting sessions
-		paths, _ := waiting.ListWaiting()
+		paths, _ := waiting.ListWaiting(m.projectRoot)
 		m.waitingSessions = make(map[string]bool)
 		for _, p := range paths {
 			m.waitingSessions[p] = true
@@ -323,6 +352,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.serverWorktreePath == item.Worktree.Path {
 					tmux.StopServerSplit()
 					m.serverWorktreePath = ""
+					waiting.ClearServerState(m.projectRoot)
 					return m, nil
 				}
 
@@ -333,12 +363,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				// Start server (will auto-stop existing one)
-				_, err := tmux.StartServerSplit(item.Worktree.Path, m.config.ServerCommand)
+				paneID, err := tmux.StartServerSplit(item.Worktree.Path, m.config.ServerCommand)
 				if err != nil {
 					m.errorMessage = fmt.Sprintf("Error starting server: %v", err)
 					return m, nil
 				}
 				m.serverWorktreePath = item.Worktree.Path
+				waiting.SaveServerState(m.projectRoot, paneID, item.Worktree.Path)
 			}
 		}
 	}
