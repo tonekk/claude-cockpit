@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -37,12 +38,13 @@ type Model struct {
 
 // KeyMap defines keyboard shortcuts
 type KeyMap struct {
-	Up      key.Binding
-	Down    key.Binding
-	Enter   key.Binding
-	Expand  key.Binding
+	Up       key.Binding
+	Down     key.Binding
+	Enter    key.Binding
+	OpenCode key.Binding
+	Expand   key.Binding
 	Collapse key.Binding
-	Quit    key.Binding
+	Quit     key.Binding
 }
 
 var keys = KeyMap{
@@ -57,6 +59,10 @@ var keys = KeyMap{
 	Enter: key.NewBinding(
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "open in tmux"),
+	),
+	OpenCode: key.NewBinding(
+		key.WithKeys("o"),
+		key.WithHelp("o", "open in VS Code"),
 	),
 	Expand: key.NewBinding(
 		key.WithKeys("l", "right"),
@@ -233,10 +239,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					_ = tmux.OpenWorktree(item.Worktree.IssueID, item.Worktree.Path)
 				}
 			}
+
+		case key.Matches(msg, keys.OpenCode):
+			if len(m.items) > 0 {
+				item := m.items[m.cursor]
+				return m, openVSCode(item.Worktree.Path)
+			}
 		}
 	}
 
 	return m, nil
+}
+
+// openVSCode opens VS Code in the given path
+func openVSCode(path string) tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("code", path)
+		_ = cmd.Start()
+		return nil
+	}
 }
 
 // View renders the UI
@@ -260,7 +281,7 @@ func (m Model) View() string {
 	}
 
 	// Help
-	help := "[enter] open   [l/→] expand   [h/←] collapse   [j/k] navigate   [q] quit"
+	help := "[enter] open   [o] vscode   [l/→] expand   [h/←] collapse   [j/k] navigate   [q] quit"
 	b.WriteString(helpStyle.Render(help))
 
 	return b.String()
