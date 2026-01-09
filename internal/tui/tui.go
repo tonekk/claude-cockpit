@@ -53,6 +53,7 @@ type KeyMap struct {
 	Enter    key.Binding
 	OpenCode key.Binding
 	Server   key.Binding
+	Shell    key.Binding
 	Expand   key.Binding
 	Collapse key.Binding
 	Help     key.Binding
@@ -79,6 +80,10 @@ var keys = KeyMap{
 	Server: key.NewBinding(
 		key.WithKeys("s"),
 		key.WithHelp("s", "start/stop server"),
+	),
+	Shell: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "open shell"),
 	),
 	Expand: key.NewBinding(
 		key.WithKeys("l", "right"),
@@ -378,6 +383,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.serverWorktreePath = item.Worktree.Path
 				waiting.SaveServerState(m.projectRoot, paneID, item.Worktree.Path)
 			}
+
+		case key.Matches(msg, keys.Shell):
+			if len(m.items) > 0 {
+				item := m.items[m.cursor]
+				tmux.OpenShellSplit(item.Worktree.Path)
+			}
 		}
 	}
 
@@ -449,6 +460,7 @@ func (m Model) renderHelpPopup() string {
 		{"enter", "Open worktree in tmux with Claude"},
 		{"o", "Open worktree in editor"},
 		{"s", "Start/stop server"},
+		{"c", "Open shell in split"},
 		{"l / →", "Expand file tree"},
 		{"h / ←", "Collapse file tree"},
 		{"j / k", "Navigate down/up"},

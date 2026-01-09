@@ -218,3 +218,9 @@ func IsServerRunning() bool {
 
 	return true
 }
+
+// OpenShellSplit opens a shell in a horizontal split at the given directory
+func OpenShellSplit(workDir string) error {
+	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir)
+	return cmd.Run()
+}
