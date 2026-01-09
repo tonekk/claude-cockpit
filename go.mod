@@ -1,4 +1,4 @@
-module github.com/foodstarter/worktree-dashboard
+module github.com/tonekk/claude-cockpit
 
 go 1.25.5
 

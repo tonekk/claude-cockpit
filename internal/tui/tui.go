@@ -13,11 +13,11 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/foodstarter/worktree-dashboard/internal/context"
-	"github.com/foodstarter/worktree-dashboard/internal/sessions"
-	"github.com/foodstarter/worktree-dashboard/internal/tmux"
-	"github.com/foodstarter/worktree-dashboard/internal/waiting"
-	"github.com/foodstarter/worktree-dashboard/internal/worktree"
+	"github.com/tonekk/claude-cockpit/internal/context"
+	"github.com/tonekk/claude-cockpit/internal/sessions"
+	"github.com/tonekk/claude-cockpit/internal/tmux"
+	"github.com/tonekk/claude-cockpit/internal/waiting"
+	"github.com/tonekk/claude-cockpit/internal/worktree"
 )
 
 // Config holds the TUI configuration
@@ -224,8 +224,8 @@ var (
 			Foreground(lipgloss.Color("252"))
 
 	sessionHeaderStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("243")).
-				Italic(true)
+				Foreground(lipgloss.Color("141")). // purple to match session names
+				Bold(true)
 
 	sessionNameStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("141")). // purple-ish
@@ -238,6 +238,23 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("212")).
 			Padding(1, 2)
+
+	// Section box styles
+	worktreeBoxStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("39")). // cyan like issue IDs
+				Padding(0, 1).
+				MarginBottom(1)
+
+	sessionBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("141")). // purple like session names
+			Padding(0, 1).
+			MarginBottom(1)
+
+	sectionTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("252"))
 )
 
 // New creates a new TUI model
@@ -625,6 +642,10 @@ func (m Model) updateAddSessionInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.showAddSession = false
 					return m, nil
 				}
+				// Open tmux window with claude immediately
+				sessionName := filepath.Base(path)
+				tmux.NewWindow(sessionName, path)
+				tmux.SendKeys("claude")
 				m.showAddSession = false
 				return m, m.loadSessions
 			}
@@ -664,23 +685,31 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	b.WriteString("\n")
-	b.WriteString(titleStyle.Render("Claude Worktrees"))
+	b.WriteString(titleStyle.Render("Claude Cockpit"))
 	b.WriteString("\n\n")
 
+	// Worktrees section with border
+	var worktreeContent strings.Builder
+	worktreeContent.WriteString(sectionTitleStyle.Render("Worktrees"))
+	worktreeContent.WriteString("\n\n")
 	for i, item := range m.items {
 		isSelected := !m.inSessionsSection && i == m.cursor
-		b.WriteString(m.renderItem(item, isSelected, m.width))
+		worktreeContent.WriteString(m.renderItem(item, isSelected, m.width))
 	}
+	b.WriteString(worktreeBoxStyle.Render(worktreeContent.String()))
+	b.WriteString("\n")
 
-	// Additional sessions section
+	// Additional sessions section with border
 	if len(m.sessionItems) > 0 {
-		b.WriteString(sessionHeaderStyle.Render("── Additional Sessions ──"))
-		b.WriteString("\n\n")
-
+		var sessionContent strings.Builder
+		sessionContent.WriteString(sectionTitleStyle.Render("Sessions"))
+		sessionContent.WriteString("\n\n")
 		for i, session := range m.sessionItems {
 			isSelected := m.inSessionsSection && i == m.cursor
-			b.WriteString(m.renderSessionItem(session, isSelected, m.width))
+			sessionContent.WriteString(m.renderSessionItem(session, isSelected, m.width))
 		}
+		b.WriteString(sessionBoxStyle.Render(sessionContent.String()))
+		b.WriteString("\n")
 	}
 
 	// Minimal help hint

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**worktree-dashboard** is a TUI tool for managing git worktrees with Claude Code integration. It displays worktrees, their git status, saved context files, and can open them in tmux windows with Claude Code auto-restoring context.
+**claude-cockpit** is a TUI for managing multiple Claude Code sessions across git worktrees and other projects. Your command center for parallel AI pair programming.
 
 ## Tech Stack
 
@@ -14,35 +14,35 @@
 
 **Always build AND install after making changes:**
 ```bash
-go build -o worktree-dashboard ./cmd/worktree-dashboard && go install ./cmd/worktree-dashboard
+go build -o claude-cockpit ./cmd/claude-cockpit && go install ./cmd/claude-cockpit
 ```
 
 Never just build without installing - the user runs the installed binary.
 
 Individual commands:
 ```bash
-go build -o worktree-dashboard ./cmd/worktree-dashboard  # Build local binary
-go install ./cmd/worktree-dashboard                       # Install to $GOPATH/bin
+go build -o claude-cockpit ./cmd/claude-cockpit  # Build local binary
+go install ./cmd/claude-cockpit                   # Install to $GOPATH/bin
 ```
 
 ## Running
 
 ```bash
-worktree-dashboard        # Interactive TUI
-worktree-dashboard --list # Non-interactive list
+claude-cockpit        # Interactive TUI
+claude-cockpit --list # Non-interactive list
 ```
 
 ## Project Structure
 
 ```
-cmd/worktree-dashboard/main.go  # Entry point, CLI flags, hook subcommands
+cmd/claude-cockpit/main.go    # Entry point, CLI flags, hook subcommands
 internal/
-  worktree/worktree.go          # Git worktree scanning & status
-  context/context.go            # Claude context file parsing
-  sessions/sessions.go          # Additional sessions management (.claude/sessions)
-  tmux/tmux.go                  # Tmux window management
-  tui/tui.go                    # Bubbletea TUI model & view
-  waiting/waiting.go            # State persistence (waiting sessions, server state)
+  worktree/worktree.go        # Git worktree scanning & status
+  context/context.go          # Claude context file parsing
+  sessions/sessions.go        # Additional sessions management (.claude/sessions)
+  tmux/tmux.go                # Tmux window management
+  tui/tui.go                  # Bubbletea TUI model & view
+  waiting/waiting.go          # State persistence (waiting sessions, server state)
 ```
 
 ## Architecture
@@ -87,7 +87,7 @@ internal/
 - **Context detection:** Looks for `.claude/contexts/{issueID}.md` in repo root
 - **Tmux integration:** Named windows by issue ID, reuses existing windows
 - **Main worktree:** Shown as "(main)" when no issue ID found
-- **Additional sessions:** Non-worktree paths stored in `.claude/sessions`, opens Claude in tmux
+- **Additional sessions:** Non-worktree paths stored in `.claude/sessions`, opens Claude in tmux immediately
 - **Waiting indicator:** Uses `WORKTREE_DASHBOARD_PROJECT` env var to route waiting state to correct project
 - **Startup validation:** Requires `.claude` directory to exist in project root
 
@@ -95,7 +95,7 @@ internal/
 
 The binary includes subcommands for Claude Code hooks:
 
-- `worktree-dashboard notify-waiting` - Called by Stop hook, marks session as waiting
-- `worktree-dashboard clear-waiting` - Called by PreToolUse hook, clears waiting status
+- `claude-cockpit notify-waiting` - Called by Stop hook, marks session as waiting
+- `claude-cockpit clear-waiting` - Called by PreToolUse hook, clears waiting status
 
-Both read `WORKTREE_DASHBOARD_PROJECT` env var (set by tmux windows opened through dashboard) to determine which project's `.claude/waiting/` to update.
+Both read `WORKTREE_DASHBOARD_PROJECT` env var (set by tmux windows opened through cockpit) to determine which project's `.claude/waiting/` to update.

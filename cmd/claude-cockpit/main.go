@@ -12,11 +12,11 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/foodstarter/worktree-dashboard/internal/context"
-	"github.com/foodstarter/worktree-dashboard/internal/tmux"
-	"github.com/foodstarter/worktree-dashboard/internal/tui"
-	"github.com/foodstarter/worktree-dashboard/internal/waiting"
-	"github.com/foodstarter/worktree-dashboard/internal/worktree"
+	"github.com/tonekk/claude-cockpit/internal/context"
+	"github.com/tonekk/claude-cockpit/internal/tmux"
+	"github.com/tonekk/claude-cockpit/internal/tui"
+	"github.com/tonekk/claude-cockpit/internal/waiting"
+	"github.com/tonekk/claude-cockpit/internal/worktree"
 )
 
 var issueIDRegex = regexp.MustCompile(`SH-\d+`)
@@ -266,9 +266,9 @@ func handleNotifyWaiting() {
 }
 
 func printUsage() {
-	fmt.Println("worktree-dashboard - TUI for managing git worktrees with Claude Code integration")
+	fmt.Println("claude-cockpit - Your command center for multiple Claude Code sessions")
 	fmt.Println()
-	fmt.Println("Usage: worktree-dashboard [options]")
+	fmt.Println("Usage: claude-cockpit [options]")
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -s, --server-command <cmd>  Server command to run in worktrees")
