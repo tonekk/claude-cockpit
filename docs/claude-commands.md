@@ -171,7 +171,13 @@ Create `.claude/contexts/{issue_id}.md`:
 ## Key Files
 
 {list of files created or significantly modified}
+
+## Steps
+
+- [{timestamp}] {initial step describing work done so far, if any}
 ```
+
+The `## Steps` section tracks progress. If work has been done, add an initial step summarizing it. Use format `- [YYYY-MM-DD HH:MM] message`.
 
 ### 4. Confirm
 
@@ -219,7 +225,91 @@ If the context file contains a `## Branch` section:
 
 Output the contents so they become part of the conversation.
 
+If there are steps in the `## Steps` section, highlight the recent ones to show what was done previously.
+
 Ask: "Context restored. What would you like to work on?"
+```
+
+---
+
+## `/done` - Record Progress Step
+
+**File:** `.claude/commands/done.md`
+
+```markdown
+Record a progress step for the current work context.
+
+## Arguments
+
+$ARGUMENTS = Optional issue ID with `SH-` prefix (e.g., `SH-431`). Only required if not inferable from context.
+
+## Steps
+
+### 1. Determine Issue ID
+
+The issue ID must always include the `SH-` prefix (e.g., `SH-343`).
+
+Priority:
+1. Use argument if provided (must be in format `SH-###`)
+2. Extract from current branch name (e.g., `feature/431-product-request-comments` → `SH-431`)
+3. Extract from current working directory path (e.g., `.worktrees/SH-431/` → `SH-431`)
+4. **Ask user if neither available** - do not proceed without a valid issue ID
+
+### 2. Read Existing Context
+
+Read `.claude/contexts/{issue_id}.md`
+
+If file doesn't exist, tell the user no context file was found and offer to create one with `/save-context`.
+
+### 3. Parse Existing Steps
+
+Look for the `## Steps` section in the context file. Note the last step if any exist.
+
+### 4. Compose New Step(s)
+
+Based on the conversation since the last step (or since context was restored):
+
+- Summarize what was accomplished as a **delta** from the previous step
+- Keep each step concise (1 line, ~10-15 words)
+- Focus on outcomes, not process ("Added user validation" not "Discussed and then implemented validation")
+- If multiple distinct things were done, create multiple steps
+- Use past tense verbs ("Added", "Fixed", "Implemented", "Refactored")
+
+### 5. Append to Context File
+
+Add steps to the `## Steps` section with timestamps:
+
+```markdown
+## Steps
+
+- [2024-01-09 14:30] Added user authentication endpoint
+- [2024-01-09 15:45] Implemented login form validation
+- [2024-01-09 16:20] Fixed edge case with empty passwords
+```
+
+If the `## Steps` section doesn't exist, create it at the end of the file.
+
+Use current timestamp in format `YYYY-MM-DD HH:MM`.
+
+### 6. Confirm
+
+Tell the user the step(s) were recorded.
+
+## Example Usage
+
+After implementing a feature:
+- User: `/done`
+- Claude: *Records "Implemented product request comments API"*
+
+After fixing a bug:
+- User: `/done`
+- Claude: *Records "Fixed geocoding timeout issue"*
+
+Multiple steps if a lot happened:
+- Claude: *Records:*
+  - *"Added comment model and migration"*
+  - *"Implemented comments controller with CRUD"*
+  - *"Added policy for comment authorization"*
 ```
 
 ---

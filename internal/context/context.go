@@ -4,8 +4,15 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+// Step represents a progress step with timestamp
+type Step struct {
+	Timestamp string
+	Message   string
+}
 
 // Context represents a saved Claude context file
 type Context struct {
@@ -14,8 +21,12 @@ type Context struct {
 	Branch    string
 	WorkDone  string
 	KeyFiles  []string
+	Steps     []Step
 	FilePath  string
 }
+
+// stepRegex matches lines like "- [2024-01-09 14:30] message"
+var stepRegex = regexp.MustCompile(`^-\s*\[([^\]]+)\]\s*(.+)$`)
 
 // Load reads a context file from .claude/contexts/{issueID}.md
 func Load(repoPath, issueID string) (*Context, error) {
@@ -92,6 +103,18 @@ func saveSection(ctx *Context, section, content string) {
 			line = strings.TrimPrefix(line, "* ")
 			if line != "" {
 				ctx.KeyFiles = append(ctx.KeyFiles, line)
+			}
+		}
+	case "Steps":
+		// Parse steps with timestamps: - [YYYY-MM-DD HH:MM] message
+		lines := strings.Split(content, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if matches := stepRegex.FindStringSubmatch(line); matches != nil {
+				ctx.Steps = append(ctx.Steps, Step{
+					Timestamp: matches[1],
+					Message:   matches[2],
+				})
 			}
 		}
 	}

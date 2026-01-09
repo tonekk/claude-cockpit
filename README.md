@@ -12,6 +12,7 @@ A TUI tool for managing git worktrees with Claude Code integration. View all you
 - Show git status with breakdown (+staged, ~modified, ?untracked)
 - Inline expandable file tree with git status indicators (A, M, D, ?)
 - Detect saved Claude context files per issue
+- Display progress steps from context files (last 1 collapsed, last 5 expanded)
 - Open worktrees in tmux with automatic context restoration
 - Open worktrees in your editor (VS Code, etc.)
 - Run server commands in tmux split pane (state persists across restarts)
@@ -91,6 +92,7 @@ For the full workflow, you need these custom commands in your project's `.claude
 | `/branch {issue}` | Create a new worktree from a Linear issue |
 | `/save-context` | Save current work context to `.claude/contexts/{issue}.md` |
 | `/restore-context` | Restore saved context and switch to worktree |
+| `/done` | Record progress step to context file |
 
 See [docs/claude-commands.md](docs/claude-commands.md) for the full command definitions you can copy into your project.
 
