@@ -261,16 +261,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
 	case tea.KeyMsg:
-		// If help popup is showing, dismiss on any key
-		if m.showHelp {
-			m.showHelp = false
-			return m, nil
-		}
-
 		// If error popup is showing, dismiss on any key
 		if m.errorMessage != "" {
 			m.errorMessage = ""
 			return m, nil
+		}
+
+		// If help popup is showing, close it but continue processing the key
+		if m.showHelp {
+			m.showHelp = false
+			// Don't return - let the key also perform its action
 		}
 
 		switch {
@@ -278,7 +278,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.Help):
-			m.showHelp = true
+			m.showHelp = !m.showHelp // Toggle
 			return m, nil
 
 		case key.Matches(msg, keys.Expand):
