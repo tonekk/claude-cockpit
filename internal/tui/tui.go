@@ -286,6 +286,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for _, p := range paths {
 			m.waitingSessions[p] = true
 		}
+
+		// Check if server pane was killed externally
+		if m.serverWorktreePath != "" && !tmux.IsServerRunning() {
+			m.serverWorktreePath = ""
+			waiting.ClearServerState(m.projectRoot)
+		}
+
 		// Continue polling
 		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
