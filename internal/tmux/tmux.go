@@ -5,8 +5,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/tonekk/claude-cockpit/internal/waiting"
 )
 
 const WaitingSuffix = " 🔴"
@@ -71,14 +69,12 @@ func OpenWorktree(name, worktreePath string, hasContext bool) error {
 		return err
 	}
 
-	// Mark as waiting since Claude will be ready for input after starting
-	waiting.MarkWaiting(ProjectRoot, worktreePath)
-
 	// Start claude, with restore-context only if context file exists
+	// Always provide a prompt so the stop hook triggers and marks waiting status
 	if hasContext {
 		return SendKeys("claude \"/restore-context " + name + "\"")
 	}
-	return SendKeys("claude")
+	return SendKeys("claude \"Hi\"")
 }
 
 // StartSession starts a new tmux session if not already in one
