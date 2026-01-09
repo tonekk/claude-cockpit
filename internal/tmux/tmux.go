@@ -56,8 +56,8 @@ func SendKeys(keys string) error {
 	return cmd.Run()
 }
 
-// OpenWorktree opens a worktree in a tmux window, running claude with restore-context
-func OpenWorktree(name, worktreePath string) error {
+// OpenWorktree opens a worktree in a tmux window, running claude with optional restore-context
+func OpenWorktree(name, worktreePath string, hasContext bool) error {
 	// Check if window already exists (with or without waiting prefix)
 	if actualName, found := FindWindowByName(name); found {
 		return SelectWindow(actualName)
@@ -68,8 +68,11 @@ func OpenWorktree(name, worktreePath string) error {
 		return err
 	}
 
-	// Start claude with restore-context as the initial prompt
-	return SendKeys("claude \"/restore-context " + name + "\"")
+	// Start claude, with restore-context only if context file exists
+	if hasContext {
+		return SendKeys("claude \"/restore-context " + name + "\"")
+	}
+	return SendKeys("claude")
 }
 
 // StartSession starts a new tmux session if not already in one

@@ -565,7 +565,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor < len(m.items) {
 				item := m.items[m.cursor]
-				_ = tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
+				_ = tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path, item.HasContext)
 			}
 
 		case key.Matches(msg, keys.OpenCode):
