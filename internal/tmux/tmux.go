@@ -57,19 +57,19 @@ func SendKeys(keys string) error {
 }
 
 // OpenWorktree opens a worktree in a tmux window, running claude with restore-context
-func OpenWorktree(issueID, worktreePath string) error {
+func OpenWorktree(name, worktreePath string) error {
 	// Check if window already exists (with or without waiting prefix)
-	if actualName, found := FindWindowByIssueID(issueID); found {
+	if actualName, found := FindWindowByName(name); found {
 		return SelectWindow(actualName)
 	}
 
 	// Create new window
-	if err := NewWindow(issueID, worktreePath); err != nil {
+	if err := NewWindow(name, worktreePath); err != nil {
 		return err
 	}
 
 	// Start claude with restore-context as the initial prompt
-	return SendKeys("claude \"/restore-context " + issueID + "\"")
+	return SendKeys("claude \"/restore-context " + name + "\"")
 }
 
 // StartSession starts a new tmux session if not already in one
@@ -96,9 +96,9 @@ func StartSession(sessionName string) error {
 	return cmd.Run()
 }
 
-// FindWindowByIssueID finds a tmux window by issue ID, checking both with and without waiting suffix
+// FindWindowByName finds a tmux window by name, checking both with and without waiting suffix
 // Returns the actual window name and whether it was found
-func FindWindowByIssueID(issueID string) (string, bool) {
+func FindWindowByName(name string) (string, bool) {
 	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_name}")
 	output, err := cmd.Output()
 	if err != nil {
@@ -106,10 +106,10 @@ func FindWindowByIssueID(issueID string) (string, bool) {
 	}
 
 	windows := strings.Split(strings.TrimSpace(string(output)), "\n")
-	waitingName := issueID + WaitingSuffix
+	waitingName := name + WaitingSuffix
 
 	for _, w := range windows {
-		if w == issueID || w == waitingName {
+		if w == name || w == waitingName {
 			return w, true
 		}
 	}
@@ -129,8 +129,8 @@ func KillWindow(windowName string) error {
 }
 
 // MarkWindowWaiting adds the waiting suffix to a window's name
-func MarkWindowWaiting(issueID string) error {
-	currentName, found := FindWindowByIssueID(issueID)
+func MarkWindowWaiting(name string) error {
+	currentName, found := FindWindowByName(name)
 	if !found {
 		return nil // Window doesn't exist, nothing to do
 	}
@@ -140,12 +140,12 @@ func MarkWindowWaiting(issueID string) error {
 		return nil
 	}
 
-	return RenameWindow(currentName, issueID+WaitingSuffix)
+	return RenameWindow(currentName, name+WaitingSuffix)
 }
 
 // ClearWindowWaiting removes the waiting suffix from a window's name
-func ClearWindowWaiting(issueID string) error {
-	currentName, found := FindWindowByIssueID(issueID)
+func ClearWindowWaiting(name string) error {
+	currentName, found := FindWindowByName(name)
 	if !found {
 		return nil // Window doesn't exist, nothing to do
 	}
@@ -155,7 +155,7 @@ func ClearWindowWaiting(issueID string) error {
 		return nil
 	}
 
-	return RenameWindow(currentName, issueID)
+	return RenameWindow(currentName, name)
 }
 
 // ServerPaneID stores the pane ID of the running server split
@@ -317,7 +317,7 @@ func ExecIntoSession(sessionName, workDir string) error {
 	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-c", workDir, "-n", "cockpit 🎛️", selfPath)
 	if err := cmd.Run(); err != nil {
 		// Session might already exist - select the cockpit window if it exists, or create it
-		if actualName, found := FindWindowByIssueID("cockpit 🎛️"); found {
+		if actualName, found := FindWindowByName("cockpit 🎛️"); found {
 			SelectWindow(actualName)
 		} else {
 			// Create a new window in the existing session

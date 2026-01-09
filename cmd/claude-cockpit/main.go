@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,8 +17,6 @@ import (
 	"github.com/tonekk/claude-cockpit/internal/waiting"
 	"github.com/tonekk/claude-cockpit/internal/worktree"
 )
-
-var issueIDRegex = regexp.MustCompile(`SH-\d+`)
 
 // envFlag is a custom flag type for collecting multiple -e KEY=VALUE flags
 type envFlag []string
@@ -169,22 +166,17 @@ func listWorktrees(projectRoot string) {
 	for _, wt := range worktrees {
 		status, _ := worktree.GetStatus(wt.Path)
 
-		issueID := wt.IssueID
-		if issueID == "" {
-			issueID = "(main)"
-		}
-
 		statusStr := "✓ clean"
 		if !status.Clean {
 			statusStr = fmt.Sprintf("● %d files", len(status.Files))
 		}
 
 		contextStr := "[no context]"
-		if wt.IssueID != "" && context.Exists(projectRoot, wt.IssueID) {
+		if context.Exists(projectRoot, wt.Name) {
 			contextStr = "[context saved]"
 		}
 
-		fmt.Printf("%-10s %-45s %s  %s\n", issueID, wt.Branch, statusStr, contextStr)
+		fmt.Printf("%-10s %-45s %s  %s\n", wt.Name, wt.Branch, statusStr, contextStr)
 	}
 }
 
@@ -268,10 +260,9 @@ func handleNotifyWaiting() {
 		os.Exit(1)
 	}
 
-	// Update tmux window name if we can find an issue ID
-	if issueID := issueIDRegex.FindString(data.Cwd); issueID != "" {
-		_ = tmux.MarkWindowWaiting(issueID)
-	}
+	// Update tmux window name using directory basename
+	name := filepath.Base(data.Cwd)
+	_ = tmux.MarkWindowWaiting(name)
 }
 
 func printUsage() {
@@ -336,8 +327,7 @@ func handleClearWaiting() {
 		os.Exit(1)
 	}
 
-	// Update tmux window name if we can find an issue ID
-	if issueID := issueIDRegex.FindString(data.Cwd); issueID != "" {
-		_ = tmux.ClearWindowWaiting(issueID)
-	}
+	// Update tmux window name using directory basename
+	name := filepath.Base(data.Cwd)
+	_ = tmux.ClearWindowWaiting(name)
 }

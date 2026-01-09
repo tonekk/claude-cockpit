@@ -16,7 +16,7 @@ type Step struct {
 
 // Context represents a saved Claude context file
 type Context struct {
-	IssueID   string
+	Name      string // directory basename (was IssueID)
 	Title     string
 	Branch    string
 	WorkDone  string
@@ -28,14 +28,14 @@ type Context struct {
 // stepRegex matches lines like "- [2024-01-09 14:30] message"
 var stepRegex = regexp.MustCompile(`^-\s*\[([^\]]+)\]\s*(.+)$`)
 
-// Load reads a context file from .claude/contexts/{issueID}.md
-func Load(repoPath, issueID string) (*Context, error) {
-	filePath := filepath.Join(repoPath, ".claude", "contexts", issueID+".md")
-	return LoadFromFile(filePath, issueID)
+// Load reads a context file from .claude/contexts/{name}.md
+func Load(repoPath, name string) (*Context, error) {
+	filePath := filepath.Join(repoPath, ".claude", "contexts", name+".md")
+	return LoadFromFile(filePath, name)
 }
 
 // LoadFromFile reads a context file from a specific path
-func LoadFromFile(filePath, issueID string) (*Context, error) {
+func LoadFromFile(filePath, name string) (*Context, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func LoadFromFile(filePath, issueID string) (*Context, error) {
 	defer file.Close()
 
 	ctx := &Context{
-		IssueID:  issueID,
+		Name:     name,
 		FilePath: filePath,
 	}
 
@@ -120,14 +120,14 @@ func saveSection(ctx *Context, section, content string) {
 	}
 }
 
-// Exists checks if a context file exists for the given issue ID
-func Exists(repoPath, issueID string) bool {
-	filePath := filepath.Join(repoPath, ".claude", "contexts", issueID+".md")
+// Exists checks if a context file exists for the given name
+func Exists(repoPath, name string) bool {
+	filePath := filepath.Join(repoPath, ".claude", "contexts", name+".md")
 	_, err := os.Stat(filePath)
 	return err == nil
 }
 
-// ListAll returns all context files in the repo
+// ListAll returns all context file names in the repo
 func ListAll(repoPath string) ([]string, error) {
 	dir := filepath.Join(repoPath, ".claude", "contexts")
 	entries, err := os.ReadDir(dir)
@@ -138,13 +138,13 @@ func ListAll(repoPath string) ([]string, error) {
 		return nil, err
 	}
 
-	var issueIDs []string
+	var names []string
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-			issueID := strings.TrimSuffix(entry.Name(), ".md")
-			issueIDs = append(issueIDs, issueID)
+			name := strings.TrimSuffix(entry.Name(), ".md")
+			names = append(names, name)
 		}
 	}
 
-	return issueIDs, nil
+	return names, nil
 }

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -12,7 +11,7 @@ import (
 type Worktree struct {
 	Path      string
 	Branch    string
-	IssueID   string // e.g., "SH-429"
+	Name      string // directory basename, e.g., "my-feature" or "SH-429"
 	GitStatus Status
 }
 
@@ -34,7 +33,6 @@ type Status struct {
 	Behind       int
 }
 
-var issueIDRegex = regexp.MustCompile(`SH-\d+`)
 
 // List returns all worktrees for the given git repository
 func List(repoPath string) ([]Worktree, error) {
@@ -60,30 +58,19 @@ func parseWorktreeList(output string) ([]Worktree, error) {
 			if current.Path != "" {
 				worktrees = append(worktrees, current)
 			}
-			current = Worktree{Path: strings.TrimPrefix(line, "worktree ")}
-		} else if strings.HasPrefix(line, "branch ") {
-			branch := strings.TrimPrefix(line, "branch refs/heads/")
-			current.Branch = branch
-			// Extract issue ID from branch name
-			if match := issueIDRegex.FindString(branch); match != "" {
-				current.IssueID = match
+			path := strings.TrimPrefix(line, "worktree ")
+			current = Worktree{
+				Path: path,
+				Name: filepath.Base(path),
 			}
+		} else if strings.HasPrefix(line, "branch ") {
+			current.Branch = strings.TrimPrefix(line, "branch refs/heads/")
 		}
 	}
 
 	// Don't forget the last worktree
 	if current.Path != "" {
 		worktrees = append(worktrees, current)
-	}
-
-	// Also try to extract issue ID from path (e.g., .worktrees/SH-429)
-	for i := range worktrees {
-		if worktrees[i].IssueID == "" {
-			dir := filepath.Base(worktrees[i].Path)
-			if match := issueIDRegex.FindString(dir); match != "" {
-				worktrees[i].IssueID = match
-			}
-		}
 	}
 
 	return worktrees, scanner.Err()

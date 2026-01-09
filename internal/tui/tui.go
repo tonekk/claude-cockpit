@@ -316,12 +316,10 @@ func (m Model) loadWorktrees() tea.Msg {
 		item.Worktree.GitStatus = status
 
 		// Check for context file
-		if wt.IssueID != "" {
-			item.HasContext = context.Exists(m.projectRoot, wt.IssueID)
-			if item.HasContext {
-				ctx, _ := context.Load(m.projectRoot, wt.IssueID)
-				item.Context = ctx
-			}
+		item.HasContext = context.Exists(m.projectRoot, wt.Name)
+		if item.HasContext {
+			ctx, _ := context.Load(m.projectRoot, wt.Name)
+			item.Context = ctx
 		}
 
 		items = append(items, item)
@@ -341,7 +339,7 @@ func (m Model) loadSessions() tea.Msg {
 		item := SessionItem{Session: s}
 
 		// Check if tmux window is open
-		_, item.TmuxOpen = tmux.FindWindowByIssueID(s.Name)
+		_, item.TmuxOpen = tmux.FindWindowByName(s.Name)
 
 		// Get git status if it's a git repo
 		if _, err := os.Stat(filepath.Join(s.Path, ".git")); err == nil {
@@ -440,7 +438,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Update tmux window status for sessions
 		for i := range m.sessionItems {
-			_, m.sessionItems[i].TmuxOpen = tmux.FindWindowByIssueID(m.sessionItems[i].Session.Name)
+			_, m.sessionItems[i].TmuxOpen = tmux.FindWindowByName(m.sessionItems[i].Session.Name)
 		}
 
 		// Continue polling
@@ -567,9 +565,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else if m.cursor < len(m.items) {
 				item := m.items[m.cursor]
-				if item.Worktree.IssueID != "" {
-					_ = tmux.OpenWorktree(item.Worktree.IssueID, item.Worktree.Path)
-				}
+				_ = tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 			}
 
 		case key.Matches(msg, keys.OpenCode):
@@ -918,11 +914,8 @@ func (m Model) renderItem(item Item, isSelected bool, width int) string {
 		indicator = "▾"
 	}
 
-	// Issue ID
-	issueID := item.Worktree.IssueID
-	if issueID == "" {
-		issueID = "main"
-	}
+	// Name (directory basename)
+	name := item.Worktree.Name
 
 	// Check if session is waiting for input
 	waitingBadge := ""
@@ -945,7 +938,7 @@ func (m Model) renderItem(item Item, isSelected bool, width int) string {
 	// First line: indicator, issue ID, badges, branch
 	line1 := fmt.Sprintf("%s %s%s%s  %s",
 		styledIndicator,
-		issueStyle.Render(issueID),
+		issueStyle.Render(name),
 		serverBadge,
 		waitingBadge,
 		branchStyle.Render(item.Worktree.Branch),
