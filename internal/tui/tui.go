@@ -43,6 +43,7 @@ type Model struct {
 	config             Config
 	serverWorktreePath string // path of worktree where server is running
 	errorMessage       string // error message to show in popup
+	showHelp           bool   // show help popup
 }
 
 // KeyMap defines keyboard shortcuts
@@ -54,6 +55,7 @@ type KeyMap struct {
 	Server   key.Binding
 	Expand   key.Binding
 	Collapse key.Binding
+	Help     key.Binding
 	Quit     key.Binding
 }
 
@@ -85,6 +87,10 @@ var keys = KeyMap{
 	Collapse: key.NewBinding(
 		key.WithKeys("h", "left"),
 		key.WithHelp("h/←", "collapse"),
+	),
+	Help: key.NewBinding(
+		key.WithKeys("?"),
+		key.WithHelp("?", "help"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -162,6 +168,18 @@ var (
 			BorderForeground(lipgloss.Color("203")).
 			Padding(1, 2).
 			Foreground(lipgloss.Color("203"))
+
+	helpPopupStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("212")).
+			Padding(1, 2)
+
+	helpKeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("212")).
+			Bold(true)
+
+	helpDescStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252"))
 )
 
 // New creates a new TUI model
@@ -243,6 +261,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
 	case tea.KeyMsg:
+		// If help popup is showing, dismiss on any key
+		if m.showHelp {
+			m.showHelp = false
+			return m, nil
+		}
+
 		// If error popup is showing, dismiss on any key
 		if m.errorMessage != "" {
 			m.errorMessage = ""
@@ -252,6 +276,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
+
+		case key.Matches(msg, keys.Help):
+			m.showHelp = true
+			return m, nil
 
 		case key.Matches(msg, keys.Expand):
 			if len(m.items) > 0 {
@@ -351,9 +379,14 @@ func (m Model) View() string {
 		b.WriteString(m.renderItem(item, isSelected))
 	}
 
-	// Help
-	help := "[enter] open   [o] editor   [s] server   [l/→] expand   [h/←] collapse   [j/k] navigate   [q] quit"
-	b.WriteString(helpStyle.Render(help))
+	// Minimal help hint
+	b.WriteString(helpStyle.Render("[?] help  [q] quit"))
+
+	// Help popup
+	if m.showHelp {
+		b.WriteString("\n\n")
+		b.WriteString(m.renderHelpPopup())
+	}
 
 	// Error popup overlay
 	if m.errorMessage != "" {
@@ -362,6 +395,39 @@ func (m Model) View() string {
 	}
 
 	return b.String()
+}
+
+// renderHelpPopup renders the help popup content
+func (m Model) renderHelpPopup() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("Keyboard Shortcuts"))
+	b.WriteString("\n\n")
+
+	helpItems := []struct {
+		key  string
+		desc string
+	}{
+		{"enter", "Open worktree in tmux with Claude"},
+		{"o", "Open worktree in editor"},
+		{"s", "Start/stop server"},
+		{"l / →", "Expand file tree"},
+		{"h / ←", "Collapse file tree"},
+		{"j / k", "Navigate down/up"},
+		{"?", "Show this help"},
+		{"q", "Quit"},
+	}
+
+	for _, item := range helpItems {
+		b.WriteString(fmt.Sprintf("  %s  %s\n",
+			helpKeyStyle.Render(fmt.Sprintf("%-7s", item.key)),
+			helpDescStyle.Render(item.desc),
+		))
+	}
+
+	b.WriteString(helpStyle.Render("\nPress any key to close"))
+
+	return helpPopupStyle.Render(b.String())
 }
 
 // renderOptionsTree renders the config options as a tree view
