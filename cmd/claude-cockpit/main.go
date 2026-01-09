@@ -255,13 +255,19 @@ func handleNotifyWaiting() {
 		}
 	}
 
-	if err := waiting.MarkWaiting(projectRoot, data.Cwd); err != nil {
+	// Find the worktree/session root from cwd (Claude may be in a subdirectory)
+	sessionRoot, err := findProjectRootFrom(data.Cwd)
+	if err != nil {
+		sessionRoot = data.Cwd // fallback for non-git directories
+	}
+
+	if err := waiting.MarkWaiting(projectRoot, sessionRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "Error marking waiting: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Update tmux window name using directory basename
-	name := filepath.Base(data.Cwd)
+	// Update tmux window name using session root basename
+	name := filepath.Base(sessionRoot)
 	_ = tmux.MarkWindowWaiting(name)
 }
 
@@ -322,12 +328,18 @@ func handleClearWaiting() {
 		}
 	}
 
-	if err := waiting.ClearWaiting(projectRoot, data.Cwd); err != nil {
+	// Find the worktree/session root from cwd (Claude may be in a subdirectory)
+	sessionRoot, err := findProjectRootFrom(data.Cwd)
+	if err != nil {
+		sessionRoot = data.Cwd // fallback for non-git directories
+	}
+
+	if err := waiting.ClearWaiting(projectRoot, sessionRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "Error clearing waiting: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Update tmux window name using directory basename
-	name := filepath.Base(data.Cwd)
+	// Update tmux window name using session root basename
+	name := filepath.Base(sessionRoot)
 	_ = tmux.ClearWindowWaiting(name)
 }

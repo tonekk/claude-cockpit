@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/tonekk/claude-cockpit/internal/waiting"
 )
 
 const WaitingSuffix = " 🔴"
@@ -42,11 +44,12 @@ var ProjectRoot string
 
 // NewWindow creates a new tmux window with the given name and working directory
 func NewWindow(windowName, workDir string) error {
-	cmd := exec.Command("tmux", "new-window", "-n", windowName, "-c", workDir)
+	args := []string{"new-window", "-n", windowName, "-c", workDir}
 	// Set environment variable so hooks know which project to notify
 	if ProjectRoot != "" {
-		cmd.Env = append(os.Environ(), "WORKTREE_DASHBOARD_PROJECT="+ProjectRoot)
+		args = append(args, "-e", "WORKTREE_DASHBOARD_PROJECT="+ProjectRoot)
 	}
+	cmd := exec.Command("tmux", args...)
 	return cmd.Run()
 }
 
@@ -67,6 +70,9 @@ func OpenWorktree(name, worktreePath string, hasContext bool) error {
 	if err := NewWindow(name, worktreePath); err != nil {
 		return err
 	}
+
+	// Mark as waiting since Claude will be ready for input after starting
+	waiting.MarkWaiting(ProjectRoot, worktreePath)
 
 	// Start claude, with restore-context only if context file exists
 	if hasContext {
