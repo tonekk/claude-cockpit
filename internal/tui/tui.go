@@ -460,7 +460,7 @@ func (m Model) renderHelpPopup() string {
 		{"enter", "Open worktree in tmux with Claude"},
 		{"o", "Open worktree in editor"},
 		{"s", "Start/stop server"},
-		{"c", "Open shell in split"},
+		{"c", "Open shell in vertical split"},
 		{"l / →", "Expand file tree"},
 		{"h / ←", "Collapse file tree"},
 		{"j / k", "Navigate down/up"},
