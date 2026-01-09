@@ -44,6 +44,7 @@ type Model struct {
 	serverWorktreePath string // path of worktree where server is running
 	errorMessage       string // error message to show in popup
 	showHelp           bool   // show help popup
+	showOptions        bool   // show options popup
 }
 
 // KeyMap defines keyboard shortcuts
@@ -57,6 +58,7 @@ type KeyMap struct {
 	Expand   key.Binding
 	Collapse key.Binding
 	Help     key.Binding
+	Options  key.Binding
 	Quit     key.Binding
 }
 
@@ -96,6 +98,10 @@ var keys = KeyMap{
 	Help: key.NewBinding(
 		key.WithKeys("?"),
 		key.WithHelp("?", "help"),
+	),
+	Options: key.NewBinding(
+		key.WithKeys("O"),
+		key.WithHelp("O", "options"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
@@ -319,12 +325,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Don't return - let the key also perform its action
 		}
 
+		// If options popup is showing, close it but continue processing the key
+		if m.showOptions {
+			m.showOptions = false
+			// Don't return - let the key also perform its action
+		}
+
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.Help):
 			m.showHelp = !m.showHelp // Toggle
+			return m, nil
+
+		case key.Matches(msg, keys.Options):
+			m.showOptions = !m.showOptions // Toggle
 			return m, nil
 
 		case key.Matches(msg, keys.Expand):
@@ -422,11 +438,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("Claude Worktrees"))
-	b.WriteString("\n")
-
-	// Options tree view
-	b.WriteString(m.renderOptionsTree())
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 
 	for i, item := range m.items {
 		isSelected := i == m.cursor
@@ -434,12 +446,18 @@ func (m Model) View() string {
 	}
 
 	// Minimal help hint
-	b.WriteString(helpStyle.Render("[?] help  [q] quit"))
+	b.WriteString(helpStyle.Render("[?] help  [O] options  [q] quit"))
 
 	// Help popup
 	if m.showHelp {
 		b.WriteString("\n\n")
 		b.WriteString(m.renderHelpPopup())
+	}
+
+	// Options popup
+	if m.showOptions {
+		b.WriteString("\n\n")
+		b.WriteString(m.renderOptionsPopup())
 	}
 
 	// Error popup overlay
@@ -469,6 +487,7 @@ func (m Model) renderHelpPopup() string {
 		{"l / →", "Expand file tree"},
 		{"h / ←", "Collapse file tree"},
 		{"j / k", "Navigate down/up"},
+		{"O", "Show options"},
 		{"?", "Show this help"},
 		{"q", "Quit"},
 	}
@@ -485,13 +504,15 @@ func (m Model) renderHelpPopup() string {
 	return helpPopupStyle.Render(b.String())
 }
 
-// renderOptionsTree renders the config options as a tree view
-func (m Model) renderOptionsTree() string {
+// renderOptionsPopup renders the options popup content
+func (m Model) renderOptionsPopup() string {
 	var b strings.Builder
 
+	b.WriteString(titleStyle.Render("Options"))
+	b.WriteString("\n\n")
+
 	// Server command
-	b.WriteString(treeStyle.Render("├── "))
-	b.WriteString(configKeyStyle.Render("server: "))
+	b.WriteString(fmt.Sprintf("  %s  ", helpKeyStyle.Render("server:")))
 	if m.config.ServerCommand != "" {
 		b.WriteString(configValueStyle.Render(m.config.ServerCommand))
 	} else {
@@ -500,12 +521,13 @@ func (m Model) renderOptionsTree() string {
 	b.WriteString("\n")
 
 	// Editor
-	b.WriteString(treeStyle.Render("└── "))
-	b.WriteString(configKeyStyle.Render("editor: "))
+	b.WriteString(fmt.Sprintf("  %s  ", helpKeyStyle.Render("editor:")))
 	b.WriteString(configValueStyle.Render(m.config.Editor))
 	b.WriteString("\n")
 
-	return b.String()
+	b.WriteString(helpStyle.Render("\nPress any key to close"))
+
+	return helpPopupStyle.Render(b.String())
 }
 
 func (m Model) renderItem(item Item, isSelected bool, width int) string {

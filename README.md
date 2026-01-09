@@ -80,6 +80,7 @@ worktree-dashboard --help
 | `h` / `←` | Collapse file tree |
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
+| `O` | Show options |
 | `?` | Show help |
 | `q` | Quit |
 
