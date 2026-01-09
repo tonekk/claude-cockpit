@@ -14,8 +14,9 @@ A TUI tool for managing git worktrees with Claude Code integration. View all you
 - Detect saved Claude context files per issue
 - Open worktrees in tmux with automatic context restoration
 - Open worktrees in your editor (VS Code, etc.)
-- Run server commands in tmux split pane
+- Run server commands in tmux split pane (state persists across restarts)
 - Extract issue IDs from branch names (e.g., `feature/SH-431-foo` → `SH-431`)
+- Per-project state stored in `.claude/` directory
 
 ## Installation
 
@@ -105,6 +106,7 @@ See [docs/claude-commands.md](docs/claude-commands.md) for the full command defi
 2. **Issue ID extraction**: Matches `SH-\d+` pattern in branch names or paths
 3. **Context detection**: Checks for `.claude/contexts/{issueID}.md` in the repo root
 4. **Tmux integration**: Creates named windows by issue ID, runs `claude "/restore-context {issueID}"`
+5. **State persistence**: Stores server state and waiting indicators in `.claude/` per project
 
 ## Project Structure
 
@@ -115,6 +117,7 @@ internal/
   context/context.go            # Claude context file parsing
   tmux/tmux.go                  # Tmux window management
   tui/tui.go                    # Bubbletea TUI model & view
+  waiting/waiting.go            # State persistence (waiting sessions, server state)
 ```
 
 ## License
