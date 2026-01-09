@@ -135,6 +135,15 @@ func main() {
 		return
 	}
 
+	// Ensure we're in a proper tmux session with correct window name
+	if needsExec, sessionName := tmux.EnsureCockpitSession(projectRoot); needsExec {
+		if err := tmux.ExecIntoSession(sessionName, projectRoot); err != nil {
+			fmt.Fprintf(os.Stderr, "Error starting tmux session: %v\n", err)
+			os.Exit(1)
+		}
+		return // ExecIntoSession replaces process, but just in case
+	}
+
 	// Create and run the TUI
 	config := tui.Config{
 		ServerCommand: finalServerCmd,

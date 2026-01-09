@@ -684,7 +684,7 @@ func (m Model) View() string {
 
 	var b strings.Builder
 
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 	b.WriteString(titleStyle.Render("Claude Cockpit"))
 	b.WriteString("\n\n")
 

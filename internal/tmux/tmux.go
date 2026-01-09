@@ -257,3 +257,74 @@ func OpenShellSplit(workDir string) error {
 	cmd := exec.Command("tmux", "split-window", "-v", "-c", workDir)
 	return cmd.Run()
 }
+
+// RenameCurrentWindow renames the current tmux window
+func RenameCurrentWindow(newName string) error {
+	cmd := exec.Command("tmux", "rename-window", newName)
+	return cmd.Run()
+}
+
+// GetCurrentSessionName returns the current tmux session name
+func GetCurrentSessionName() (string, error) {
+	cmd := exec.Command("tmux", "display-message", "-p", "#{session_name}")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// RenameSession renames a tmux session
+func RenameSession(oldName, newName string) error {
+	cmd := exec.Command("tmux", "rename-session", "-t", oldName, newName)
+	return cmd.Run()
+}
+
+// EnsureCockpitSession checks tmux state and sets up the cockpit window/session
+// Returns true if we need to exec into a new session (caller should exec)
+func EnsureCockpitSession(projectDir string) (needsExec bool, sessionName string) {
+	basename := projectDir
+	if idx := strings.LastIndex(projectDir, string(os.PathSeparator)); idx >= 0 {
+		basename = projectDir[idx+1:]
+	}
+	sessionName = "claude-" + basename
+
+	if IsInsideTmux() {
+		// Already in tmux, just rename the current window
+		RenameCurrentWindow("cockpit 🎛️")
+		return false, ""
+	}
+
+	// Not in tmux - need to create/attach to session
+	return true, sessionName
+}
+
+// ExecIntoSession creates a new tmux session (or attaches if exists) and execs into it
+// This replaces the current process
+func ExecIntoSession(sessionName, workDir string) error {
+	tmuxPath, err := exec.LookPath("tmux")
+	if err != nil {
+		return err
+	}
+
+	// Get our own executable path to re-run in the new session
+	selfPath, err := os.Executable()
+	if err != nil {
+		selfPath = "claude-cockpit" // fallback to hoping it's in PATH
+	}
+
+	// Try to create a new session with the cockpit window, running ourselves
+	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-c", workDir, "-n", "cockpit 🎛️", selfPath)
+	if err := cmd.Run(); err != nil {
+		// Session might already exist - select the cockpit window if it exists, or create it
+		if actualName, found := FindWindowByIssueID("cockpit 🎛️"); found {
+			SelectWindow(actualName)
+		} else {
+			// Create a new window in the existing session
+			exec.Command("tmux", "new-window", "-t", sessionName, "-n", "cockpit 🎛️", "-c", workDir, selfPath).Run()
+		}
+	}
+
+	// Exec into tmux attach
+	return execSyscall(tmuxPath, []string{"tmux", "attach-session", "-t", sessionName}, os.Environ())
+}
