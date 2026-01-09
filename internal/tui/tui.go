@@ -17,6 +17,12 @@ import (
 	"github.com/foodstarter/worktree-dashboard/internal/worktree"
 )
 
+// Config holds the TUI configuration
+type Config struct {
+	ServerCommand string
+	Editor        string
+}
+
 // Item represents a worktree with its context info
 type Item struct {
 	Worktree   worktree.Worktree
@@ -27,13 +33,16 @@ type Item struct {
 
 // Model is the bubbletea model
 type Model struct {
-	items           []Item
-	cursor          int
-	projectRoot     string
-	width           int
-	height          int
-	err             error
-	waitingSessions map[string]bool // paths with sessions waiting for input
+	items              []Item
+	cursor             int
+	projectRoot        string
+	width              int
+	height             int
+	err                error
+	waitingSessions    map[string]bool // paths with sessions waiting for input
+	config             Config
+	serverWorktreePath string // path of worktree where server is running
+	errorMessage       string // error message to show in popup
 }
 
 // KeyMap defines keyboard shortcuts
@@ -42,6 +51,7 @@ type KeyMap struct {
 	Down     key.Binding
 	Enter    key.Binding
 	OpenCode key.Binding
+	Server   key.Binding
 	Expand   key.Binding
 	Collapse key.Binding
 	Quit     key.Binding
@@ -62,7 +72,11 @@ var keys = KeyMap{
 	),
 	OpenCode: key.NewBinding(
 		key.WithKeys("o"),
-		key.WithHelp("o", "open in VS Code"),
+		key.WithHelp("o", "open in editor"),
+	),
+	Server: key.NewBinding(
+		key.WithKeys("s"),
+		key.WithHelp("s", "start/stop server"),
 	),
 	Expand: key.NewBinding(
 		key.WithKeys("l", "right"),
@@ -128,12 +142,33 @@ var (
 	waitingStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("220")). // yellow/amber
 			Bold(true)
+
+	serverRunningStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("42")). // green
+				Bold(true)
+
+	configKeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243"))
+
+	configValueStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("39"))
+
+	configNotSetStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("241")).
+				Italic(true)
+
+	errorPopupStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("203")).
+			Padding(1, 2).
+			Foreground(lipgloss.Color("203"))
 )
 
 // New creates a new TUI model
-func New(projectRoot string) Model {
+func New(projectRoot string, config Config) Model {
 	return Model{
 		projectRoot: projectRoot,
+		config:      config,
 	}
 }
 
@@ -208,6 +243,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
 	case tea.KeyMsg:
+		// If error popup is showing, dismiss on any key
+		if m.errorMessage != "" {
+			m.errorMessage = ""
+			return m, nil
+		}
+
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
@@ -243,7 +284,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.OpenCode):
 			if len(m.items) > 0 {
 				item := m.items[m.cursor]
-				return m, openVSCode(item.Worktree.Path)
+				return m, openEditor(item.Worktree.Path, m.config.Editor)
+			}
+
+		case key.Matches(msg, keys.Server):
+			if len(m.items) > 0 {
+				item := m.items[m.cursor]
+
+				// Check if server is running in this worktree - toggle off
+				if m.serverWorktreePath == item.Worktree.Path {
+					tmux.StopServerSplit()
+					m.serverWorktreePath = ""
+					return m, nil
+				}
+
+				// Check if server command is configured
+				if m.config.ServerCommand == "" {
+					m.errorMessage = "Error: No server command configured.\nUse -s or --server-command flag, or set WORKTREE_DASHBOARD_SERVER_COMMAND"
+					return m, nil
+				}
+
+				// Start server (will auto-stop existing one)
+				_, err := tmux.StartServerSplit(item.Worktree.Path, m.config.ServerCommand)
+				if err != nil {
+					m.errorMessage = fmt.Sprintf("Error starting server: %v", err)
+					return m, nil
+				}
+				m.serverWorktreePath = item.Worktree.Path
 			}
 		}
 	}
@@ -251,10 +318,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// openVSCode opens VS Code in the given path
-func openVSCode(path string) tea.Cmd {
+// openEditor opens the configured editor in the given path
+func openEditor(path, editor string) tea.Cmd {
 	return func() tea.Msg {
-		cmd := exec.Command("code", path)
+		cmd := exec.Command(editor, path)
 		_ = cmd.Start()
 		return nil
 	}
@@ -273,7 +340,11 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("Claude Worktrees"))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+
+	// Options tree view
+	b.WriteString(m.renderOptionsTree())
+	b.WriteString("\n")
 
 	for i, item := range m.items {
 		isSelected := i == m.cursor
@@ -281,8 +352,37 @@ func (m Model) View() string {
 	}
 
 	// Help
-	help := "[enter] open   [o] vscode   [l/→] expand   [h/←] collapse   [j/k] navigate   [q] quit"
+	help := "[enter] open   [o] editor   [s] server   [l/→] expand   [h/←] collapse   [j/k] navigate   [q] quit"
 	b.WriteString(helpStyle.Render(help))
+
+	// Error popup overlay
+	if m.errorMessage != "" {
+		b.WriteString("\n\n")
+		b.WriteString(errorPopupStyle.Render(m.errorMessage + "\n\nPress any key to dismiss"))
+	}
+
+	return b.String()
+}
+
+// renderOptionsTree renders the config options as a tree view
+func (m Model) renderOptionsTree() string {
+	var b strings.Builder
+
+	// Server command
+	b.WriteString(treeStyle.Render("├── "))
+	b.WriteString(configKeyStyle.Render("server: "))
+	if m.config.ServerCommand != "" {
+		b.WriteString(configValueStyle.Render(m.config.ServerCommand))
+	} else {
+		b.WriteString(configNotSetStyle.Render("not set"))
+	}
+	b.WriteString("\n")
+
+	// Editor
+	b.WriteString(treeStyle.Render("└── "))
+	b.WriteString(configKeyStyle.Render("editor: "))
+	b.WriteString(configValueStyle.Render(m.config.Editor))
+	b.WriteString("\n")
 
 	return b.String()
 }
@@ -309,10 +409,17 @@ func (m Model) renderItem(item Item, isSelected bool) string {
 		waitingBadge = " " + waitingStyle.Render("⏳")
 	}
 
-	// First line: indicator, issue ID, waiting badge, branch
-	line1 := fmt.Sprintf("%s %s%s  %s",
+	// Check if server is running in this worktree
+	serverBadge := ""
+	if m.serverWorktreePath == item.Worktree.Path {
+		serverBadge = " " + serverRunningStyle.Render("▶")
+	}
+
+	// First line: indicator, issue ID, badges, branch
+	line1 := fmt.Sprintf("%s %s%s%s  %s",
 		indicator,
 		issueStyle.Render(issueID),
+		serverBadge,
 		waitingBadge,
 		branchStyle.Render(item.Worktree.Branch),
 	)

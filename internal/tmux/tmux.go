@@ -143,3 +143,67 @@ func ClearWindowWaiting(issueID string) error {
 
 	return RenameWindow(currentName, issueID)
 }
+
+// ServerPaneID stores the pane ID of the running server split
+var ServerPaneID string
+
+// StartServerSplit creates a horizontal split and runs the server command
+// Returns the pane ID of the new split
+func StartServerSplit(workDir, serverCommand string) (string, error) {
+	// First stop any existing server
+	if ServerPaneID != "" {
+		StopServerSplit()
+	}
+
+	// Create horizontal split (left/right) with the server command
+	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir, "-P", "-F", "#{pane_id}", serverCommand)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+
+	paneID := strings.TrimSpace(string(output))
+	ServerPaneID = paneID
+
+	// Focus back on the original pane (the dashboard)
+	exec.Command("tmux", "select-pane", "-L").Run()
+
+	return paneID, nil
+}
+
+// StopServerSplit kills the server split pane
+func StopServerSplit() error {
+	if ServerPaneID == "" {
+		return nil
+	}
+
+	cmd := exec.Command("tmux", "kill-pane", "-t", ServerPaneID)
+	err := cmd.Run()
+	ServerPaneID = ""
+	return err
+}
+
+// IsServerRunning returns true if a server split is currently running
+func IsServerRunning() bool {
+	if ServerPaneID == "" {
+		return false
+	}
+
+	// Check if the pane still exists
+	cmd := exec.Command("tmux", "list-panes", "-F", "#{pane_id}")
+	output, err := cmd.Output()
+	if err != nil {
+		ServerPaneID = ""
+		return false
+	}
+
+	panes := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, p := range panes {
+		if p == ServerPaneID {
+			return true
+		}
+	}
+
+	ServerPaneID = ""
+	return false
+}

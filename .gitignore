@@ -1,5 +1,5 @@
 # Binaries
-worktree-dashboard
+/worktree-dashboard
 *.exe
 *.exe~
 *.dll
