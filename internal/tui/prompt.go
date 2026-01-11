@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tonekk/claude-cockpit/internal/sessions"
 	"github.com/tonekk/claude-cockpit/internal/tmux"
+	"github.com/tonekk/claude-cockpit/internal/worktree"
 )
 
 type Prompt struct {
@@ -126,7 +127,19 @@ func acceptWorktreeDir(m Model, dirName string) (tea.Model, tea.Cmd) {
 }
 
 func acceptWorktreeBranch(m Model, branchName string) (tea.Model, tea.Cmd) {
-	// TODO: Implement worktree creation
+	dirName := m.newWorktreeDir
+	m.newWorktreeDir = ""
 	m.prompts.deactivate()
+
+	if err := worktree.Create(m.projectRoot, dirName, branchName); err != nil {
+		m.errorMessage = fmt.Sprintf("Error creating worktree: %v", err)
+		return m, nil
+	}
+
+	// Open the new worktree in tmux with claude
+	worktreePath := filepath.Join(m.projectRoot, ".worktrees", dirName)
+	tmux.NewWindow(dirName, worktreePath)
+	tmux.SendKeys("claude \"Hi\"")
+
 	return m, m.loadWorktrees
 }

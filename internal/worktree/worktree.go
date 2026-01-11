@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"bufio"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,20 @@ type Status struct {
 	Behind       int
 }
 
+
+// Create creates a new worktree with a new branch in .worktrees/
+func Create(repoPath, dirName, branchName string) error {
+	worktreesDir := filepath.Join(repoPath, ".worktrees")
+	if _, err := os.Stat(worktreesDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(worktreesDir, 0755); err != nil {
+			return err
+		}
+	}
+	worktreePath := filepath.Join(worktreesDir, dirName)
+	cmd := exec.Command("git", "worktree", "add", "-b", branchName, worktreePath)
+	cmd.Dir = repoPath
+	return cmd.Run()
+}
 
 // List returns all worktrees for the given git repository
 func List(repoPath string) ([]Worktree, error) {
