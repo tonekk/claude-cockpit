@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/tonekk/claude-cockpit/internal/config"
 	"github.com/tonekk/claude-cockpit/internal/context"
 	"github.com/tonekk/claude-cockpit/internal/sessions"
 	"github.com/tonekk/claude-cockpit/internal/tmux"
@@ -17,8 +18,8 @@ import (
 	"github.com/tonekk/claude-cockpit/internal/worktree"
 )
 
-// Config holds the TUI configuration
-type Config struct {
+// Options holds the TUI runtime options (from CLI flags)
+type Options struct {
 	ServerCommand string
 	ServerEnv     map[string]string
 	Editor        string
@@ -51,7 +52,8 @@ type Model struct {
 	height             int
 	err                error
 	waitingSessions    map[string]bool // paths with sessions waiting for input
-	config             Config
+	options            Options
+	config             config.Config
 	serverWorktreePath string // path of worktree where server is running
 	errorMessage       string // error message to show in popup
 	showHelp           bool   // show help popup
@@ -61,9 +63,10 @@ type Model struct {
 }
 
 // New creates a new TUI model
-func New(projectRoot string, config Config) Model {
+func New(projectRoot string, options Options, config config.Config) Model {
 	return Model{
 		projectRoot: projectRoot,
+		options:     options,
 		config:      config,
 		prompts:     NewPromptManager(),
 	}
@@ -367,17 +370,25 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				tmux.SelectWindow(session.Session.Name)
 			} else {
 				tmux.NewWindow(session.Session.Name, session.Session.Path)
-				tmux.SendKeys("claude")
+				m.config.SendSetupAndClaudeToTmux("claude")
 			}
 		} else if m.cursor < len(m.items) {
 			item := m.items[m.cursor]
-			_ = tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path, item.HasContext)
+			isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
+			if isNew {
+				// Build claude command with optional restore-context
+				claudeCmd := "claude \"Hi\""
+				if item.HasContext {
+					claudeCmd = "claude \"/restore-context " + item.Worktree.Name + "\""
+				}
+				m.config.SendSetupAndClaudeToTmux(claudeCmd)
+			}
 		}
 
 	case key.Matches(msg, keys.OpenCode):
 		path := m.getCurrentPath()
 		if path != "" {
-			return m, openEditor(path, m.config.Editor)
+			return m, openEditor(path, m.options.Editor)
 		}
 
 	case key.Matches(msg, keys.Server):
@@ -393,13 +404,13 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 
 			// Check if server command is configured
-			if m.config.ServerCommand == "" {
+			if m.options.ServerCommand == "" {
 				m.errorMessage = "Error: No server command configured.\nUse -s or --server-command flag, or set WD_SERVER_COMMAND"
 				return m, nil
 			}
 
 			// Start server (will auto-stop existing one)
-			paneID, err := tmux.StartServerSplit(item.Worktree.Path, m.config.ServerCommand, m.config.ServerEnv)
+			paneID, err := tmux.StartServerSplit(item.Worktree.Path, m.options.ServerCommand, m.options.ServerEnv)
 			if err != nil {
 				m.errorMessage = fmt.Sprintf("Error starting server: %v", err)
 				return m, nil

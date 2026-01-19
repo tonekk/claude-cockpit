@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/tonekk/claude-cockpit/internal/config"
 	"github.com/tonekk/claude-cockpit/internal/context"
 	"github.com/tonekk/claude-cockpit/internal/tmux"
 	"github.com/tonekk/claude-cockpit/internal/tui"
@@ -40,6 +41,9 @@ func main() {
 		case "clear-waiting":
 			handleClearWaiting()
 			return
+		case "run-setup":
+			handleRunSetup()
+			return
 		}
 	}
 
@@ -63,6 +67,19 @@ func main() {
 	if *helpFlag || *helpFlagLong {
 		printUsage()
 		return
+	}
+
+	cwd, err := os.Getwd()
+
+	if err != nil {
+		panic(err)
+	}
+
+	// Read config
+	config, err := config.Load(cwd)
+
+	if err != nil {
+		panic(err)
 	}
 
 	// Resolve server command: flag > env > empty
@@ -142,12 +159,12 @@ func main() {
 	}
 
 	// Create and run the TUI
-	config := tui.Config{
+	options := tui.Options{
 		ServerCommand: finalServerCmd,
 		ServerEnv:     serverEnv,
 		Editor:        finalEditor,
 	}
-	m := tui.New(projectRoot, config)
+	m := tui.New(projectRoot, options, *config)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
@@ -275,6 +292,10 @@ func printUsage() {
 	fmt.Println("claude-cockpit - Your command center for multiple Claude Code sessions")
 	fmt.Println()
 	fmt.Println("Usage: claude-cockpit [options]")
+	fmt.Println("       claude-cockpit run-setup")
+	fmt.Println()
+	fmt.Println("Subcommands:")
+	fmt.Println("  run-setup               Run setup commands from cockpit.yml")
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -s, --server-command <cmd>  Server command to run in worktrees")
@@ -342,4 +363,39 @@ func handleClearWaiting() {
 	// Update tmux window name using session root basename
 	name := filepath.Base(sessionRoot)
 	_ = tmux.ClearWindowWaiting(name)
+}
+
+// handleRunSetup runs setup commands from cockpit.yml in the current directory
+func handleRunSetup() {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting current directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	projectRoot, err := findProjectRootFrom(cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
+		os.Exit(1)
+	}
+
+	cfg, err := config.Load(projectRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading cockpit.yml: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(cfg.Setup) == 0 {
+		fmt.Println("No setup commands in cockpit.yml")
+		return
+	}
+
+	fmt.Printf("Running setup in %s\n\n", cwd)
+
+	if err := cfg.RunSetupCLI(cwd); err != nil {
+		fmt.Fprintf(os.Stderr, "\n%v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("\n✓ Setup complete")
 }

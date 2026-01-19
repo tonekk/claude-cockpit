@@ -25,15 +25,14 @@ type FileStatus struct {
 
 // Status represents the git status of a worktree
 type Status struct {
-	Clean        bool
-	Files        []FileStatus
-	StagedCount  int
-	ModifiedCount int // unstaged modifications
+	Clean          bool
+	Files          []FileStatus
+	StagedCount    int
+	ModifiedCount  int // unstaged modifications
 	UntrackedCount int
-	Ahead        int
-	Behind       int
+	Ahead          int
+	Behind         int
 }
-
 
 // Create creates a new worktree with a new branch in .worktrees/
 func Create(repoPath, dirName, branchName string) error {
@@ -46,6 +45,7 @@ func Create(repoPath, dirName, branchName string) error {
 	worktreePath := filepath.Join(worktreesDir, dirName)
 	cmd := exec.Command("git", "worktree", "add", "-b", branchName, worktreePath)
 	cmd.Dir = repoPath
+
 	return cmd.Run()
 }
 

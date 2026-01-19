@@ -1,0 +1,87 @@
+package config
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/google/shlex"
+	"github.com/tonekk/claude-cockpit/internal/tmux"
+	"gopkg.in/yaml.v3"
+)
+
+type Config struct {
+	Setup []string `yaml:"setup"`
+}
+
+func Load(projectPath string) (*Config, error) {
+	data, err := os.ReadFile(projectPath + "/cockpit.yml")
+
+	if os.IsNotExist(err) {
+		return &Config{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var config Config
+	err = yaml.Unmarshal(data, &config)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+// SendSetupAndClaudeToTmux sends setup commands followed by claude command
+// If setup fails, shows error message and waits for keypress to close tab
+func (c *Config) SendSetupAndClaudeToTmux(claudeCmd string) {
+	if len(c.Setup) == 0 {
+		// No setup, just run claude
+		tmux.SendKeys(claudeCmd)
+		return
+	}
+
+	setupCmd := strings.Join(c.Setup, " && ")
+	// On success: run claude. On failure: show error, wait for key, exit (closes tab)
+	fullCmd := fmt.Sprintf("(%s && %s) || (echo '' && echo '❌ Setup failed. Fix your cockpit.yml and try again.' && echo 'Press any key to close this tab...' && read && exit)", setupCmd, claudeCmd)
+	tmux.SendKeys(fullCmd)
+}
+
+// RunSetupCLI runs setup commands with output to stdout (for CLI usage)
+func (c *Config) RunSetupCLI(worktreePath string) error {
+	for _, cmdStr := range c.Setup {
+		fmt.Printf("→ %s\n", cmdStr)
+
+		output, err := runSetupCommand(cmdStr, worktreePath)
+		if err != nil {
+			return err
+		}
+
+		if output != "" {
+			fmt.Print(output)
+		}
+	}
+
+	return nil
+}
+
+func runSetupCommand(cmdStr string, worktreePath string) (string, error) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	parts, _ := shlex.Split(cmdStr)
+	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd.Dir = worktreePath
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if err != nil {
+		return stdout.String(), fmt.Errorf("Error running `%s`:\n%s", cmdStr, stderr.String())
+	}
+
+	return stdout.String(), nil
+}

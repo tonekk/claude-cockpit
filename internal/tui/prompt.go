@@ -136,10 +136,10 @@ func acceptWorktreeBranch(m Model, branchName string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Open the new worktree in tmux with claude
+	// Open the new worktree in tmux with setup + claude
 	worktreePath := filepath.Join(m.projectRoot, ".worktrees", dirName)
 	tmux.NewWindow(dirName, worktreePath)
-	tmux.SendKeys("claude \"Hi\"")
+	m.config.SendSetupAndClaudeToTmux("claude \"Hi\"")
 
 	return m, m.loadWorktrees
 }

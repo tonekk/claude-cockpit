@@ -203,18 +203,18 @@ func (m Model) renderConfigPopup() string {
 
 	// Server command
 	b.WriteString(fmt.Sprintf("  %s  ", helpKeyStyle.Render("server:")))
-	if m.config.ServerCommand != "" {
-		b.WriteString(configValueStyle.Render(m.config.ServerCommand))
+	if m.options.ServerCommand != "" {
+		b.WriteString(configValueStyle.Render(m.options.ServerCommand))
 	} else {
 		b.WriteString(configNotSetStyle.Render("not set"))
 	}
 	b.WriteString("\n")
 
 	// Server env vars
-	if len(m.config.ServerEnv) > 0 {
+	if len(m.options.ServerEnv) > 0 {
 		b.WriteString(fmt.Sprintf("  %s  ", helpKeyStyle.Render("env:")))
 		var envPairs []string
-		for k, v := range m.config.ServerEnv {
+		for k, v := range m.options.ServerEnv {
 			envPairs = append(envPairs, k+"="+v)
 		}
 		b.WriteString(configValueStyle.Render(strings.Join(envPairs, ", ")))
@@ -223,7 +223,7 @@ func (m Model) renderConfigPopup() string {
 
 	// Editor
 	b.WriteString(fmt.Sprintf("  %s  ", helpKeyStyle.Render("editor:")))
-	b.WriteString(configValueStyle.Render(m.config.Editor))
+	b.WriteString(configValueStyle.Render(m.options.Editor))
 	b.WriteString("\n")
 
 	b.WriteString(helpStyle.Render("\nPress any key to close"))
