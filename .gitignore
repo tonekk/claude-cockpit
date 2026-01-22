@@ -37,3 +37,8 @@ vendor/
 .Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
+
+.claude/waiting/
+.worktrees/
+GUIDE.md
+claude-cockpit
