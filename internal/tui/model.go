@@ -61,6 +61,7 @@ type Model struct {
 	prompts            PromptManager
 	newWorktreeDir     string
 	showConfirm        bool
+	confirmHeader      string
 	confirmMessage     string
 	confirmHandler     func() (func() tea.Msg, error)
 }
@@ -289,6 +290,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if m.showConfirm {
 		m.showConfirm = false
+		m.confirmHeader = ""
 		m.confirmMessage = ""
 
 		if key.Matches(msg, keys.Yes) {
@@ -323,37 +325,21 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 
 	case key.Matches(msg, keys.Delete):
-		// Only allow deletion of additional sessions
+		m.showConfirm = true
+
 		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
 			session := m.sessionItems[m.cursor]
-			// Kill tmux window if open
-			if session.TmuxOpen {
-				tmux.KillWindow(session.Session.Name)
-			}
-			// Remove from sessions file
-			sessions.Remove(m.projectRoot, session.Session.Path)
-			// Adjust cursor if needed
-			if m.cursor >= len(m.sessionItems)-1 && m.cursor > 0 {
-				m.cursor--
-			}
-			// If no more sessions, move back to worktrees section
-			if len(m.sessionItems) <= 1 {
-				m.inSessionsSection = false
-				m.cursor = len(m.worktreeItems) - 1
-				if m.cursor < 0 {
-					m.cursor = 0
-				}
-			}
-			return m, m.loadSessions
+			m.confirmHeader = "Remove Session"
+			m.confirmMessage = "Remove " + confirmTargetStyle.Render(session.Session.Name) + "?"
+			m.confirmHandler = m.removeSelectedSession
 		} else {
 			wt := m.worktreeItems[m.cursor]
-
-			m.showConfirm = true
+			m.confirmHeader = "Remove Worktree"
 			m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
 			m.confirmHandler = m.removeSelectedWorktree
-
-			return m, nil
 		}
+
+		return m, nil
 
 	case key.Matches(msg, keys.AddWorktree):
 		m.prompts.activate("worktreeDir")
@@ -516,4 +502,14 @@ func (m Model) removeSelectedWorktree() (handler func() tea.Msg, err error) {
 	}
 
 	return m.loadWorktrees, nil
+}
+
+func (m Model) removeSelectedSession() (handler func() tea.Msg, err error) {
+	session := m.sessionItems[m.cursor]
+
+	if err := sessions.Remove(m.projectRoot, session.Session); err != nil {
+		return nil, err
+	}
+
+	return m.loadSessions, nil
 }

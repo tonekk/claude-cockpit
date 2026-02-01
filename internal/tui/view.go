@@ -62,7 +62,7 @@ func (m Model) View() string {
 	// Confirm popup
 	if m.showConfirm {
 		var cb strings.Builder
-		cb.WriteString(confirmTitleStyle.Render("Remove Worktree"))
+		cb.WriteString(confirmTitleStyle.Render(m.confirmHeader))
 		cb.WriteString("\n\n")
 		cb.WriteString(m.confirmMessage)
 		cb.WriteString("\n\n")
