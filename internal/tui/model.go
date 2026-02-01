@@ -208,8 +208,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case worktreesMsg:
 		m.worktreeItems = msg.items
 
+		// Reset to last worktree item if all were deleted
+		if !m.inSessionsSection && m.cursor > len(m.worktreeItems)-1 {
+			m.cursor = len(m.worktreeItems) - 1
+		}
+
 	case sessionsMsg:
 		m.sessionItems = msg.items
+
+		if m.inSessionsSection {
+			// Reset to last worktree item if all sessions were deleted
+			if len(m.sessionItems) == 0 {
+				m.inSessionsSection = false
+				m.cursor = len(m.worktreeItems) - 1
+				// Reset to last session item if last session item was deleted
+			} else if m.cursor > len(m.sessionItems)-1 {
+				m.cursor = len(m.sessionItems) - 1
+			}
+		}
 
 	case sessionAddedMsg, sessionRemovedMsg:
 		// Reload sessions after add/remove
