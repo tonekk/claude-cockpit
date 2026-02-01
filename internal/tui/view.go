@@ -59,6 +59,20 @@ func (m Model) View() string {
 		b.WriteString(promptPopup)
 	}
 
+	// Confirm popup
+	if m.showConfirm {
+		var cb strings.Builder
+		cb.WriteString(confirmTitleStyle.Render("Remove Worktree"))
+		cb.WriteString("\n\n")
+		cb.WriteString(m.confirmMessage)
+		cb.WriteString("\n\n")
+		cb.WriteString(confirmHintStyle.Render("Press "))
+		cb.WriteString(helpKeyStyle.Render("y"))
+		cb.WriteString(confirmHintStyle.Render(" to confirm, any other key to cancel"))
+		b.WriteString("\n\n")
+		b.WriteString(confirmPopupStyle.Render(cb.String()))
+	}
+
 	// Help popup
 	if m.showHelp {
 		b.WriteString("\n\n")

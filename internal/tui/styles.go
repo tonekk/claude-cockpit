@@ -72,6 +72,22 @@ var (
 				Foreground(lipgloss.Color("241")).
 				Italic(true)
 
+	confirmPopupStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("203")).
+				Padding(1, 2)
+
+	confirmTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("203"))
+
+	confirmTargetStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("212"))
+
+	confirmHintStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("241"))
+
 	errorPopupStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("203")).

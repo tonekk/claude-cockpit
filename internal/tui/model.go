@@ -60,6 +60,9 @@ type Model struct {
 	showConfig         bool   // show config popup
 	prompts            PromptManager
 	newWorktreeDir     string
+	showConfirm        bool
+	confirmMessage     string
+	confirmHandler     func() (func() tea.Msg, error)
 }
 
 // New creates a new TUI model
@@ -268,6 +271,25 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showConfig = false
 	}
 
+	if m.showConfirm {
+		m.showConfirm = false
+		m.confirmMessage = ""
+
+		if key.Matches(msg, keys.Yes) {
+			handler, err := m.confirmHandler()
+			m.confirmHandler = nil
+
+			if err != nil {
+				m.errorMessage = err.Error()
+				return m, nil
+			}
+
+			return m, handler
+		}
+
+		return m, tea.ClearScreen
+	}
+
 	switch {
 	case key.Matches(msg, keys.Quit):
 		return m, tea.Quit
@@ -284,7 +306,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.prompts.activate("session")
 		return m, textinput.Blink
 
-	case key.Matches(msg, keys.DelSession):
+	case key.Matches(msg, keys.Delete):
 		// Only allow deletion of additional sessions
 		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
 			session := m.sessionItems[m.cursor]
@@ -307,6 +329,14 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, m.loadSessions
+		} else {
+			wt := m.items[m.cursor]
+
+			m.showConfirm = true
+			m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
+			m.confirmHandler = m.removeSelectedWorktree
+
+			return m, nil
 		}
 
 	case key.Matches(msg, keys.AddWorktree):
@@ -460,4 +490,14 @@ func openEditor(path, editor string) tea.Cmd {
 		_ = cmd.Start()
 		return nil
 	}
+}
+
+func (m Model) removeSelectedWorktree() (handler func() tea.Msg, err error) {
+	wt := m.items[m.cursor]
+
+	if err := worktree.Remove(wt.Worktree); err != nil {
+		return nil, err
+	}
+
+	return m.loadWorktrees, nil
 }
