@@ -25,8 +25,8 @@ type Options struct {
 	Editor        string
 }
 
-// Item represents a worktree with its context info
-type Item struct {
+// WorktreeItem represents a worktree with its context info
+type WorktreeItem struct {
 	Worktree   worktree.Worktree
 	HasContext bool
 	Context    *context.Context
@@ -43,7 +43,7 @@ type SessionItem struct {
 
 // Model is the bubbletea model
 type Model struct {
-	items              []Item
+	worktreeItems      []WorktreeItem
 	sessionItems       []SessionItem
 	cursor             int
 	inSessionsSection  bool // true when cursor is in additional sessions section
@@ -60,6 +60,10 @@ type Model struct {
 	showConfig         bool   // show config popup
 	prompts            PromptManager
 	newWorktreeDir     string
+	showConfirm        bool
+	confirmHeader      string
+	confirmMessage     string
+	confirmHandler     func() (func() tea.Msg, error)
 }
 
 // New creates a new TUI model
@@ -108,9 +112,9 @@ func (m Model) loadWorktrees() tea.Msg {
 		return errMsg{err}
 	}
 
-	var items []Item
+	var items []WorktreeItem
 	for _, wt := range worktrees {
-		item := Item{Worktree: wt}
+		item := WorktreeItem{Worktree: wt}
 
 		// Load git status
 		status, _ := worktree.GetStatus(wt.Path)
@@ -126,7 +130,7 @@ func (m Model) loadWorktrees() tea.Msg {
 		items = append(items, item)
 	}
 
-	return itemsMsg{items}
+	return worktreesMsg{items}
 }
 
 func (m Model) loadSessions() tea.Msg {
@@ -154,8 +158,8 @@ func (m Model) loadSessions() tea.Msg {
 	return sessionsMsg{items}
 }
 
-type itemsMsg struct {
-	items []Item
+type worktreesMsg struct {
+	items []WorktreeItem
 }
 
 type sessionsMsg struct {
@@ -183,8 +187,8 @@ func (m Model) getCurrentPath() string {
 			return m.sessionItems[m.cursor].Session.Path
 		}
 	} else {
-		if m.cursor < len(m.items) {
-			return m.items[m.cursor].Worktree.Path
+		if m.cursor < len(m.worktreeItems) {
+			return m.worktreeItems[m.cursor].Worktree.Path
 		}
 	}
 	return ""
@@ -202,11 +206,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case itemsMsg:
-		m.items = msg.items
+	case worktreesMsg:
+		m.worktreeItems = msg.items
+
+		// Reset to last worktree item if all were deleted
+		if !m.inSessionsSection && m.cursor > len(m.worktreeItems)-1 {
+			m.cursor = len(m.worktreeItems) - 1
+		}
 
 	case sessionsMsg:
 		m.sessionItems = msg.items
+
+		if m.inSessionsSection {
+			// Reset to last worktree item if all sessions were deleted
+			if len(m.sessionItems) == 0 {
+				m.inSessionsSection = false
+				m.cursor = len(m.worktreeItems) - 1
+				// Reset to last session item if last session item was deleted
+			} else if m.cursor > len(m.sessionItems)-1 {
+				m.cursor = len(m.sessionItems) - 1
+			}
+		}
 
 	case sessionAddedMsg, sessionRemovedMsg:
 		// Reload sessions after add/remove
@@ -268,6 +288,26 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showConfig = false
 	}
 
+	if m.showConfirm {
+		m.showConfirm = false
+		m.confirmHeader = ""
+		m.confirmMessage = ""
+
+		if key.Matches(msg, keys.Yes) {
+			handler, err := m.confirmHandler()
+			m.confirmHandler = nil
+
+			if err != nil {
+				m.errorMessage = err.Error()
+				return m, nil
+			}
+
+			return m, handler
+		}
+
+		return m, tea.ClearScreen
+	}
+
 	switch {
 	case key.Matches(msg, keys.Quit):
 		return m, tea.Quit
@@ -284,30 +324,22 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.prompts.activate("session")
 		return m, textinput.Blink
 
-	case key.Matches(msg, keys.DelSession):
-		// Only allow deletion of additional sessions
+	case key.Matches(msg, keys.Delete):
+		m.showConfirm = true
+
 		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
 			session := m.sessionItems[m.cursor]
-			// Kill tmux window if open
-			if session.TmuxOpen {
-				tmux.KillWindow(session.Session.Name)
-			}
-			// Remove from sessions file
-			sessions.Remove(m.projectRoot, session.Session.Path)
-			// Adjust cursor if needed
-			if m.cursor >= len(m.sessionItems)-1 && m.cursor > 0 {
-				m.cursor--
-			}
-			// If no more sessions, move back to worktrees section
-			if len(m.sessionItems) <= 1 {
-				m.inSessionsSection = false
-				m.cursor = len(m.items) - 1
-				if m.cursor < 0 {
-					m.cursor = 0
-				}
-			}
-			return m, m.loadSessions
+			m.confirmHeader = "Remove Session"
+			m.confirmMessage = "Remove " + confirmTargetStyle.Render(session.Session.Name) + "?"
+			m.confirmHandler = m.removeSelectedSession
+		} else {
+			wt := m.worktreeItems[m.cursor]
+			m.confirmHeader = "Remove Worktree"
+			m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
+			m.confirmHandler = m.removeSelectedWorktree
 		}
+
+		return m, nil
 
 	case key.Matches(msg, keys.AddWorktree):
 		m.prompts.activate("worktreeDir")
@@ -318,8 +350,8 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.sessionItems) {
 				m.sessionItems[m.cursor].Expanded = true
 			}
-		} else if m.cursor < len(m.items) {
-			m.items[m.cursor].Expanded = true
+		} else if m.cursor < len(m.worktreeItems) {
+			m.worktreeItems[m.cursor].Expanded = true
 		}
 
 	case key.Matches(msg, keys.Collapse):
@@ -327,8 +359,8 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(m.sessionItems) {
 				m.sessionItems[m.cursor].Expanded = false
 			}
-		} else if m.cursor < len(m.items) {
-			m.items[m.cursor].Expanded = false
+		} else if m.cursor < len(m.worktreeItems) {
+			m.worktreeItems[m.cursor].Expanded = false
 		}
 
 	case key.Matches(msg, keys.Up):
@@ -338,7 +370,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				// Move to worktrees section
 				m.inSessionsSection = false
-				m.cursor = len(m.items) - 1
+				m.cursor = len(m.worktreeItems) - 1
 				if m.cursor < 0 {
 					m.cursor = 0
 				}
@@ -353,7 +385,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 		} else {
-			if m.cursor < len(m.items)-1 {
+			if m.cursor < len(m.worktreeItems)-1 {
 				m.cursor++
 			} else if len(m.sessionItems) > 0 {
 				// Move to sessions section
@@ -372,8 +404,8 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				tmux.NewWindow(session.Session.Name, session.Session.Path)
 				m.config.SendSetupAndClaudeToTmux("claude")
 			}
-		} else if m.cursor < len(m.items) {
-			item := m.items[m.cursor]
+		} else if m.cursor < len(m.worktreeItems) {
+			item := m.worktreeItems[m.cursor]
 			isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 			if isNew {
 				// Build claude command with optional restore-context
@@ -392,8 +424,8 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, keys.Server):
-		if !m.inSessionsSection && m.cursor < len(m.items) {
-			item := m.items[m.cursor]
+		if !m.inSessionsSection && m.cursor < len(m.worktreeItems) {
+			item := m.worktreeItems[m.cursor]
 
 			// Check if server is running in this worktree - toggle off
 			if m.serverWorktreePath == item.Worktree.Path {
@@ -460,4 +492,24 @@ func openEditor(path, editor string) tea.Cmd {
 		_ = cmd.Start()
 		return nil
 	}
+}
+
+func (m Model) removeSelectedWorktree() (handler func() tea.Msg, err error) {
+	wt := m.worktreeItems[m.cursor]
+
+	if err := worktree.Remove(wt.Worktree); err != nil {
+		return nil, err
+	}
+
+	return m.loadWorktrees, nil
+}
+
+func (m Model) removeSelectedSession() (handler func() tea.Msg, err error) {
+	session := m.sessionItems[m.cursor]
+
+	if err := sessions.Remove(m.projectRoot, session.Session); err != nil {
+		return nil, err
+	}
+
+	return m.loadSessions, nil
 }

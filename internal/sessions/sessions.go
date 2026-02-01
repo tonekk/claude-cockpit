@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/tonekk/claude-cockpit/internal/tmux"
 )
 
 // sessionsFile returns the path to the sessions file
@@ -78,7 +80,7 @@ func Add(projectRoot, path string) error {
 }
 
 // Remove removes a session path from the sessions file
-func Remove(projectRoot, path string) error {
+func Remove(projectRoot string, session Session) error {
 	sessions, err := List(projectRoot)
 	if err != nil {
 		return err
@@ -87,7 +89,7 @@ func Remove(projectRoot, path string) error {
 	// Filter out the path to remove
 	var remaining []string
 	for _, s := range sessions {
-		if s.Path != path {
+		if s.Path != session.Path {
 			remaining = append(remaining, s.Path)
 		}
 	}
@@ -104,6 +106,11 @@ func Remove(projectRoot, path string) error {
 		if _, err := f.WriteString(p + "\n"); err != nil {
 			return err
 		}
+	}
+
+	// Kill tmux window if open
+	if tmux.WindowExists(session.Name) {
+		tmux.KillWindow(session.Name)
 	}
 
 	return nil

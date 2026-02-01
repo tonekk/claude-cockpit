@@ -2,10 +2,13 @@ package worktree
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/tonekk/claude-cockpit/internal/tmux"
 )
 
 // Worktree represents a git worktree
@@ -45,6 +48,24 @@ func Create(repoPath, dirName, branchName string) error {
 	worktreePath := filepath.Join(worktreesDir, dirName)
 	cmd := exec.Command("git", "worktree", "add", "-b", branchName, worktreePath)
 	cmd.Dir = repoPath
+
+	return cmd.Run()
+}
+
+func Remove(wt Worktree) error {
+	if wt.Branch == "main" {
+		return errors.New("Can't remove main worktree")
+	}
+
+	if !wt.GitStatus.Clean {
+		return errors.New("Can't remove dirty worktree")
+	}
+
+	if tmux.WindowExists(wt.Name) {
+		tmux.KillWindow(wt.Name)
+	}
+
+	cmd := exec.Command("git", "worktree", "remove", wt.Path)
 
 	return cmd.Run()
 }
