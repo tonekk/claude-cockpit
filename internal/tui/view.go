@@ -16,7 +16,7 @@ func (m Model) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.err)
 	}
 
-	if len(m.items) == 0 {
+	if len(m.worktreeItems) == 0 {
 		return "Loading worktrees..."
 	}
 
@@ -30,7 +30,7 @@ func (m Model) View() string {
 	var worktreeContent strings.Builder
 	worktreeContent.WriteString(sectionTitleStyle.Render("Worktrees"))
 	worktreeContent.WriteString("\n\n")
-	for i, item := range m.items {
+	for i, item := range m.worktreeItems {
 		isSelected := !m.inSessionsSection && i == m.cursor
 		worktreeContent.WriteString(m.renderItem(item, isSelected, m.width))
 	}
@@ -245,7 +245,7 @@ func (m Model) renderConfigPopup() string {
 	return helpPopupStyle.Render(b.String())
 }
 
-func (m Model) renderItem(item Item, isSelected bool, width int) string {
+func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string {
 	var b strings.Builder
 	status := item.Worktree.GitStatus
 
