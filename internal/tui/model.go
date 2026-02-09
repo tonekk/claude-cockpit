@@ -49,6 +49,7 @@ type Model struct {
 	height             int
 	err                error
 	waitingSessions    map[string]bool // paths with sessions waiting for input
+	activeSessions     map[string]bool // paths with Claude actively running
 	options            Options
 	config             config.Config
 	serverWorktreePath string // path of worktree where server is running
@@ -262,9 +263,19 @@ func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
 		waiting.ClearServerState(m.projectRoot)
 	}
 
-	// Update tmux window status for sessions
+	// Check which sessions have Claude actively running
+	m.activeSessions = make(map[string]bool)
 	for i := range m.sessionItems {
-		_, m.sessionItems[i].TmuxOpen = tmux.FindWindowByName(m.sessionItems[i].Session.Name)
+		name := m.sessionItems[i].Session.Name
+		_, m.sessionItems[i].TmuxOpen = tmux.FindWindowByName(name)
+		if m.sessionItems[i].TmuxOpen && tmux.IsClaudeRunningInWindow(name) {
+			m.activeSessions[m.sessionItems[i].Session.Path] = true
+		}
+	}
+	for _, item := range m.worktreeItems {
+		if tmux.IsClaudeRunningInWindow(item.Worktree.Name) {
+			m.activeSessions[item.Worktree.Path] = true
+		}
 	}
 
 	// Continue polling

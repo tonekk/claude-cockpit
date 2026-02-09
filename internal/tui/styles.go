@@ -24,8 +24,7 @@ var (
 			Foreground(lipgloss.Color("42"))
 
 	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243")).
-			Italic(true)
+			Foreground(lipgloss.Color("241"))
 
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")).

@@ -121,23 +121,25 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 		indicator = "▾"
 	}
 
+	active := m.activeSessions[item.Session.Path]
+
 	styledIndicator := indicator
 	if isSelected {
 		styledIndicator = selectedStyle.Render(indicator)
 	}
 
-	// Tmux window status
-	windowBadge := ""
-	if item.TmuxOpen {
-		windowBadge = " " + serverRunningStyle.Render("●")
+	// First line: indicator, name, path
+	nameStyle := sessionNameStyle
+	pathStyle := sessionPathStyle
+	if !active {
+		nameStyle = dimStyle
+		pathStyle = dimStyle
 	}
 
-	// First line: indicator, name, badges, path
-	line1 := fmt.Sprintf("%s %s%s  %s",
+	line1 := fmt.Sprintf("%s %s  %s",
 		styledIndicator,
-		sessionNameStyle.Render(item.Session.Name),
-		windowBadge,
-		sessionPathStyle.Render(item.Session.Path),
+		nameStyle.Render(item.Session.Name),
+		pathStyle.Render(item.Session.Path),
 	)
 
 	b.WriteString(line1)
@@ -147,19 +149,39 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 	var statusParts []string
 	if item.GitStatus != nil {
 		if item.GitStatus.Clean {
-			statusParts = append(statusParts, cleanStyle.Render("✓ clean"))
+			s := cleanStyle
+			if !active {
+				s = dimStyle
+			}
+			statusParts = append(statusParts, s.Render("✓ clean"))
 		} else {
 			totalFiles := len(item.GitStatus.Files)
-			statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
+			if active {
+				statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
+			} else {
+				statusParts = append(statusParts, dimStyle.Render(fmt.Sprintf("● %d files", totalFiles)))
+			}
 
 			if item.GitStatus.StagedCount > 0 {
-				statusParts = append(statusParts, stagedStyle.Render(fmt.Sprintf("+%d staged", item.GitStatus.StagedCount)))
+				s := stagedStyle
+				if !active {
+					s = dimStyle
+				}
+				statusParts = append(statusParts, s.Render(fmt.Sprintf("+%d staged", item.GitStatus.StagedCount)))
 			}
 			if item.GitStatus.ModifiedCount > 0 {
-				statusParts = append(statusParts, modifiedStyle.Render(fmt.Sprintf("~%d modified", item.GitStatus.ModifiedCount)))
+				s := modifiedStyle
+				if !active {
+					s = dimStyle
+				}
+				statusParts = append(statusParts, s.Render(fmt.Sprintf("~%d modified", item.GitStatus.ModifiedCount)))
 			}
 			if item.GitStatus.UntrackedCount > 0 {
-				statusParts = append(statusParts, untrackedStyle.Render(fmt.Sprintf("?%d untracked", item.GitStatus.UntrackedCount)))
+				s := untrackedStyle
+				if !active {
+					s = dimStyle
+				}
+				statusParts = append(statusParts, s.Render(fmt.Sprintf("?%d untracked", item.GitStatus.UntrackedCount)))
 			}
 		}
 	} else {
@@ -250,6 +272,7 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 
 	// Name (directory basename)
 	name := item.Worktree.Name
+	active := m.activeSessions[item.Worktree.Path]
 
 	// Check if server is running in this worktree
 	serverBadge := ""
@@ -264,11 +287,18 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 	}
 
 	// First line: indicator, issue ID, badges, branch
+	nameStyle := issueStyle
+	bStyle := branchStyle
+	if !active {
+		nameStyle = dimStyle
+		bStyle = dimStyle
+	}
+
 	line1 := fmt.Sprintf("%s %s%s  %s",
 		styledIndicator,
-		issueStyle.Render(name),
+		nameStyle.Render(name),
 		serverBadge,
-		branchStyle.Render(item.Worktree.Branch),
+		bStyle.Render(item.Worktree.Branch),
 	)
 
 	b.WriteString(line1)
@@ -278,27 +308,55 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 	var statusParts []string
 
 	if status.Clean {
-		statusParts = append(statusParts, cleanStyle.Render("✓ clean"))
+		s := cleanStyle
+		if !active {
+			s = dimStyle
+		}
+		statusParts = append(statusParts, s.Render("✓ clean"))
 	} else {
 		totalFiles := len(status.Files)
-		statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
+		if active {
+			statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
+		} else {
+			statusParts = append(statusParts, dimStyle.Render(fmt.Sprintf("● %d files", totalFiles)))
+		}
 
 		if status.StagedCount > 0 {
-			statusParts = append(statusParts, stagedStyle.Render(fmt.Sprintf("+%d staged", status.StagedCount)))
+			s := stagedStyle
+			if !active {
+				s = dimStyle
+			}
+			statusParts = append(statusParts, s.Render(fmt.Sprintf("+%d staged", status.StagedCount)))
 		}
 		if status.ModifiedCount > 0 {
-			statusParts = append(statusParts, modifiedStyle.Render(fmt.Sprintf("~%d modified", status.ModifiedCount)))
+			s := modifiedStyle
+			if !active {
+				s = dimStyle
+			}
+			statusParts = append(statusParts, s.Render(fmt.Sprintf("~%d modified", status.ModifiedCount)))
 		}
 		if status.UntrackedCount > 0 {
-			statusParts = append(statusParts, untrackedStyle.Render(fmt.Sprintf("?%d untracked", status.UntrackedCount)))
+			s := untrackedStyle
+			if !active {
+				s = dimStyle
+			}
+			statusParts = append(statusParts, s.Render(fmt.Sprintf("?%d untracked", status.UntrackedCount)))
 		}
 	}
 
 	if status.Ahead > 0 {
-		statusParts = append(statusParts, fmt.Sprintf("↑%d", status.Ahead))
+		text := fmt.Sprintf("↑%d", status.Ahead)
+		if !active {
+			text = dimStyle.Render(text)
+		}
+		statusParts = append(statusParts, text)
 	}
 	if status.Behind > 0 {
-		statusParts = append(statusParts, fmt.Sprintf("↓%d", status.Behind))
+		text := fmt.Sprintf("↓%d", status.Behind)
+		if !active {
+			text = dimStyle.Render(text)
+		}
+		statusParts = append(statusParts, text)
 	}
 
 	line2 := "    " + strings.Join(statusParts, "  ")
