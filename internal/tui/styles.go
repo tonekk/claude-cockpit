@@ -24,8 +24,7 @@ var (
 			Foreground(lipgloss.Color("42"))
 
 	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243")).
-			Italic(true)
+			Foreground(lipgloss.Color("241"))
 
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")).
@@ -46,10 +45,6 @@ var (
 
 	deletedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("203")) // red
-
-	waitingStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("220")). // yellow/amber
-			Bold(true)
 
 	serverRunningStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("42")). // green
