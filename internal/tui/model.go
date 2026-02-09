@@ -63,6 +63,7 @@ type Model struct {
 	confirmHeader      string
 	confirmMessage     string
 	confirmHandler     func() (func() tea.Msg, error)
+	tickCount          int // counts ticks for periodic git status refresh
 }
 
 // New creates a new TUI model
@@ -230,6 +231,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
+	m.tickCount++
+
+	// Refresh git status every 4 ticks (~2s)
+	if m.tickCount%4 == 0 {
+		for i := range m.worktreeItems {
+			status, _ := worktree.GetStatus(m.worktreeItems[i].Worktree.Path)
+			m.worktreeItems[i].Worktree.GitStatus = status
+		}
+		for i := range m.sessionItems {
+			if m.sessionItems[i].GitStatus != nil {
+				status, _ := worktree.GetStatus(m.sessionItems[i].Session.Path)
+				m.sessionItems[i].GitStatus = &status
+			}
+		}
+	}
+
 	// Poll for waiting sessions and clean up stale ones
 	paths, _ := waiting.ListWaiting(m.projectRoot)
 	m.waitingSessions = make(map[string]bool)
