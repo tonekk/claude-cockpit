@@ -293,12 +293,6 @@ func IsServerRunning() bool {
 	return true
 }
 
-// OpenShellSplit opens a shell in a vertical split at the given directory
-func OpenShellSplit(workDir string) error {
-	cmd := exec.Command("tmux", "split-window", "-v", "-c", workDir)
-	return cmd.Run()
-}
-
 // OpenDiff opens git diff in a horizontal split at the given directory
 func OpenDiff(workDir string) error {
 	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir, "git", "diff")
