@@ -18,7 +18,6 @@ type Config struct {
 
 func Load(projectPath string) (*Config, error) {
 	data, err := os.ReadFile(projectPath + "/cockpit.yml")
-
 	if os.IsNotExist(err) {
 		return &Config{}, nil
 	}
@@ -27,9 +26,7 @@ func Load(projectPath string) (*Config, error) {
 	}
 
 	var config Config
-	err = yaml.Unmarshal(data, &config)
-
-	if err != nil {
+	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
 
@@ -69,18 +66,19 @@ func (c *Config) RunSetupCLI(worktreePath string) error {
 	return nil
 }
 
-func runSetupCommand(cmdStr string, worktreePath string) (string, error) {
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+func runSetupCommand(cmdStr, worktreePath string) (string, error) {
+	parts, err := shlex.Split(cmdStr)
+	if err != nil {
+		return "", fmt.Errorf("error parsing command `%s`: %w", cmdStr, err)
+	}
 
-	parts, _ := shlex.Split(cmdStr)
+	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(parts[0], parts[1:]...)
 	cmd.Dir = worktreePath
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
-
-	if err != nil {
-		return stdout.String(), fmt.Errorf("error running `%s`:\n%s", cmdStr, stderr.String())
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("error running `%s`:\n%s", cmdStr, stderr.String())
 	}
 
 	return stdout.String(), nil

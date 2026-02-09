@@ -44,7 +44,7 @@ func (m Model) View() string {
 		sessionContent.WriteString("\n\n")
 		for i, session := range m.sessionItems {
 			isSelected := m.inSessionsSection && i == m.cursor
-			sessionContent.WriteString(m.renderSessionItem(session, isSelected, m.width))
+			sessionContent.WriteString(m.renderSessionItem(session, isSelected))
 		}
 		b.WriteString(sessionBoxStyle.Render(sessionContent.String()))
 		b.WriteString("\n")
@@ -112,7 +112,7 @@ func (m Model) renderPromptPopup() string {
 }
 
 // renderSessionItem renders an additional session item
-func (m Model) renderSessionItem(item SessionItem, isSelected bool, width int) string {
+func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 	var b strings.Builder
 
 	// Indicator
