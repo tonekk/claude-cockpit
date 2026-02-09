@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tonekk/claude-cockpit/internal/config"
-	"github.com/tonekk/claude-cockpit/internal/context"
 	"github.com/tonekk/claude-cockpit/internal/sessions"
 	"github.com/tonekk/claude-cockpit/internal/tmux"
 	"github.com/tonekk/claude-cockpit/internal/waiting"
@@ -25,12 +24,10 @@ type Options struct {
 	Editor        string
 }
 
-// WorktreeItem represents a worktree with its context info
+// WorktreeItem represents a worktree in the list
 type WorktreeItem struct {
-	Worktree   worktree.Worktree
-	HasContext bool
-	Context    *context.Context
-	Expanded   bool
+	Worktree worktree.Worktree
+	Expanded bool
 }
 
 // SessionItem represents an additional session (non-worktree)
@@ -119,13 +116,6 @@ func (m Model) loadWorktrees() tea.Msg {
 		// Load git status
 		status, _ := worktree.GetStatus(wt.Path)
 		item.Worktree.GitStatus = status
-
-		// Check for context file
-		item.HasContext = context.Exists(m.projectRoot, wt.Name)
-		if item.HasContext {
-			ctx, _ := context.Load(m.projectRoot, wt.Name)
-			item.Context = ctx
-		}
 
 		items = append(items, item)
 	}
@@ -408,12 +398,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			item := m.worktreeItems[m.cursor]
 			isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 			if isNew {
-				// Build claude command with optional restore-context
-				claudeCmd := "claude \"Hi\""
-				if item.HasContext {
-					claudeCmd = "claude \"/restore-context " + item.Worktree.Name + "\""
-				}
-				m.config.SendSetupAndClaudeToTmux(claudeCmd)
+				m.config.SendSetupAndClaudeToTmux("claude \"Hi\"")
 			}
 		}
 
