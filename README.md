@@ -20,7 +20,7 @@ A TUI dashboard for managing parallel Claude Code sessions across git worktrees 
 
 - 📂 **Worktree overview** - All your worktrees at a glance with git status
 - 🔄 **Session management** - Add any directory as an additional session
-- ⏳ **Waiting indicator** - Know when Claude is waiting for your input
+- 🔴 **Waiting indicator** - Know when Claude is waiting for your input
 - 🚀 **One-key tmux integration** - Jump into any session instantly
 - 📝 **Context restoration** - Pick up exactly where you left off
 - 🖥️ **Server window** - Run your dev server in a dedicated tmux window
@@ -124,7 +124,7 @@ Want to know when Claude is waiting for you across all your sessions? Add these 
 }
 ```
 
-Now you'll see ⏳ next to any session that needs your attention. No more wondering "wait, did Claude finish?"
+Now you'll see 🔴 next to any session that needs your attention. No more wondering "wait, did Claude finish?"
 
 ## Environment Variables
 
