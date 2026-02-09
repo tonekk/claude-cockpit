@@ -38,6 +38,7 @@ vendor/
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
 
+.claude/sessions
 .claude/waiting/
 .worktrees/
 GUIDE.md
