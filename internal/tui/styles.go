@@ -47,10 +47,6 @@ var (
 	deletedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("203")) // red
 
-	waitingStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("220")). // yellow/amber
-			Bold(true)
-
 	serverRunningStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("42")). // green
 				Bold(true)

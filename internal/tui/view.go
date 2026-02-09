@@ -132,18 +132,11 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 		windowBadge = " " + serverRunningStyle.Render("●")
 	}
 
-	// Waiting badge
-	waitingBadge := ""
-	if m.waitingSessions[item.Session.Path] {
-		waitingBadge = " " + waitingStyle.Render("⏳")
-	}
-
 	// First line: indicator, name, badges, path
-	line1 := fmt.Sprintf("%s %s%s%s  %s",
+	line1 := fmt.Sprintf("%s %s%s  %s",
 		styledIndicator,
 		sessionNameStyle.Render(item.Session.Name),
 		windowBadge,
-		waitingBadge,
 		sessionPathStyle.Render(item.Session.Path),
 	)
 
@@ -258,12 +251,6 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 	// Name (directory basename)
 	name := item.Worktree.Name
 
-	// Check if session is waiting for input
-	waitingBadge := ""
-	if m.waitingSessions[item.Worktree.Path] {
-		waitingBadge = " " + waitingStyle.Render("⏳")
-	}
-
 	// Check if server is running in this worktree
 	serverBadge := ""
 	if m.serverWorktreePath == item.Worktree.Path {
@@ -277,11 +264,10 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 	}
 
 	// First line: indicator, issue ID, badges, branch
-	line1 := fmt.Sprintf("%s %s%s%s  %s",
+	line1 := fmt.Sprintf("%s %s%s  %s",
 		styledIndicator,
 		issueStyle.Render(name),
 		serverBadge,
-		waitingBadge,
 		branchStyle.Render(item.Worktree.Branch),
 	)
 

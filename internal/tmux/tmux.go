@@ -135,6 +135,27 @@ func ClearWindowWaiting(name string) error {
 	return RenameWindow(currentName, name)
 }
 
+// IsClaudeRunningInWindow checks if claude is the current command in any pane of the given window
+func IsClaudeRunningInWindow(name string) bool {
+	actualName, found := FindWindowByName(name)
+	if !found {
+		return false
+	}
+
+	cmd := exec.Command("tmux", "list-panes", "-t", actualName, "-F", "#{pane_current_command}")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line == "claude" {
+			return true
+		}
+	}
+	return false
+}
+
 // ServerPaneID stores the pane ID of the running server split
 var ServerPaneID string
 

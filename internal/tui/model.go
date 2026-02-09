@@ -239,11 +239,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
-	// Poll for waiting sessions
+	// Poll for waiting sessions and clean up stale ones
 	paths, _ := waiting.ListWaiting(m.projectRoot)
 	m.waitingSessions = make(map[string]bool)
 	for _, p := range paths {
-		m.waitingSessions[p] = true
+		name := filepath.Base(p)
+		if _, found := tmux.FindWindowByName(name); !found {
+			// Window gone — clear stale waiting state
+			waiting.ClearWaiting(m.projectRoot, p)
+		} else if !tmux.IsClaudeRunningInWindow(name) {
+			// Window exists but Claude exited — clear waiting state and window indicator
+			waiting.ClearWaiting(m.projectRoot, p)
+			tmux.ClearWindowWaiting(name)
+		} else {
+			m.waitingSessions[p] = true
+		}
 	}
 
 	// Check if server pane was killed externally
