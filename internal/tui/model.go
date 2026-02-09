@@ -404,11 +404,11 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			item := m.worktreeItems[m.cursor]
 			isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 			if isNew {
-				m.config.SendSetupAndClaudeToTmux("claude \"Hi\"")
+				m.config.SendSetupAndClaudeToTmux("claude")
 			}
 		}
 
-	case key.Matches(msg, keys.OpenCode):
+	case key.Matches(msg, keys.OpenEditor):
 		path := m.getCurrentPath()
 		if path != "" {
 			return m, openEditor(path, m.options.Editor)
@@ -440,10 +440,17 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.serverWorktreePath = item.Worktree.Path
 		}
 
-	case key.Matches(msg, keys.Shell):
-		path := m.getCurrentPath()
-		if path != "" {
-			tmux.OpenShellSplit(path)
+	case key.Matches(msg, keys.Open):
+		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
+			session := m.sessionItems[m.cursor]
+			if session.TmuxOpen {
+				tmux.SelectWindow(session.Session.Name)
+			} else {
+				tmux.NewWindow(session.Session.Name, session.Session.Path)
+			}
+		} else if m.cursor < len(m.worktreeItems) {
+			item := m.worktreeItems[m.cursor]
+			tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 		}
 
 	case key.Matches(msg, keys.Diff):
