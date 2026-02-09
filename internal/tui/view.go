@@ -274,12 +274,6 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 	name := item.Worktree.Name
 	active := m.activeSessions[item.Worktree.Path]
 
-	// Check if server is running in this worktree
-	serverBadge := ""
-	if m.serverWorktreePath == item.Worktree.Path {
-		serverBadge = " " + serverRunningStyle.Render("▶")
-	}
-
 	// Color the indicator when selected
 	styledIndicator := indicator
 	if isSelected {
@@ -294,10 +288,9 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 		bStyle = dimStyle
 	}
 
-	line1 := fmt.Sprintf("%s %s%s  %s",
+	line1 := fmt.Sprintf("%s %s  %s",
 		styledIndicator,
 		nameStyle.Render(name),
-		serverBadge,
 		bStyle.Render(item.Worktree.Branch),
 	)
 
