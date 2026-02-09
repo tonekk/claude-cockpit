@@ -8,6 +8,7 @@ import (
 )
 
 const WaitingSuffix = " 🔴"
+const ServerPrefix = "🔌 "
 
 // IsInsideTmux returns true if we're running inside a tmux session
 func IsInsideTmux() bool {
@@ -70,6 +71,11 @@ func OpenWorktree(name, worktreePath string) (isNew bool, err error) {
 		return false, err
 	}
 
+	// Add 🔌 prefix if server is running for this worktree
+	if serverWorktreeName == name {
+		RenameWindow(name, ServerPrefix+name)
+	}
+
 	return true, nil
 }
 
@@ -82,12 +88,19 @@ func FindWindowByName(name string) (string, bool) {
 		return "", false
 	}
 
-	windows := strings.Split(strings.TrimSpace(string(output)), "\n")
-	waitingName := name + WaitingSuffix
+	// Match all prefix/suffix combinations
+	candidates := []string{
+		name,
+		ServerPrefix + name,
+		name + WaitingSuffix,
+		ServerPrefix + name + WaitingSuffix,
+	}
 
-	for _, w := range windows {
-		if w == name || w == waitingName {
-			return w, true
+	for _, w := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		for _, c := range candidates {
+			if w == c {
+				return w, true
+			}
 		}
 	}
 	return "", false
@@ -101,38 +114,43 @@ func RenameWindow(oldName, newName string) error {
 
 // KillWindow kills a tmux window by name
 func KillWindow(windowName string) error {
-	cmd := exec.Command("tmux", "kill-window", "-t", windowName)
-	return cmd.Run()
+	// Find window index by name to avoid tmux target parsing issues with special characters
+	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_index} #{window_name}")
+	output, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		idx, name, found := strings.Cut(line, " ")
+		if found && name == windowName {
+			return exec.Command("tmux", "kill-window", "-t", idx).Run()
+		}
+	}
+	return nil
 }
 
 // MarkWindowWaiting adds the waiting suffix to a window's name
 func MarkWindowWaiting(name string) error {
 	currentName, found := FindWindowByName(name)
 	if !found {
-		return nil // Window doesn't exist, nothing to do
-	}
-
-	// Already has waiting suffix
-	if strings.HasSuffix(currentName, WaitingSuffix) {
 		return nil
 	}
-
-	return RenameWindow(currentName, name+WaitingSuffix)
+	if strings.Contains(currentName, WaitingSuffix) {
+		return nil
+	}
+	return RenameWindow(currentName, currentName+WaitingSuffix)
 }
 
 // ClearWindowWaiting removes the waiting suffix from a window's name
 func ClearWindowWaiting(name string) error {
 	currentName, found := FindWindowByName(name)
 	if !found {
-		return nil // Window doesn't exist, nothing to do
-	}
-
-	// Doesn't have waiting suffix
-	if !strings.HasSuffix(currentName, WaitingSuffix) {
 		return nil
 	}
-
-	return RenameWindow(currentName, name)
+	if !strings.Contains(currentName, WaitingSuffix) {
+		return nil
+	}
+	return RenameWindow(currentName, strings.Replace(currentName, WaitingSuffix, "", 1))
 }
 
 // IsClaudeRunningInWindow checks if claude is the current command in any pane of the given window
@@ -156,15 +174,18 @@ func IsClaudeRunningInWindow(name string) bool {
 	return false
 }
 
-// ServerPaneID stores the pane ID of the running server split
-var ServerPaneID string
+// ServerWindowName stores the window name of the running server
+var ServerWindowName string
 
-// StartServerSplit creates a horizontal split and runs the server command
-// Returns the pane ID of the new split
-func StartServerSplit(workDir, serverCommand string, envVars map[string]string) (string, error) {
+// serverWorktreeName stores the worktree name whose window gets the 🔌 suffix
+var serverWorktreeName string
+
+// StartServerWindow creates a new tmux window and runs the server command
+// Returns the window name
+func StartServerWindow(worktreeName, workDir, serverCommand string, envVars map[string]string) (string, error) {
 	// First stop any existing server
-	if ServerPaneID != "" {
-		StopServerSplit()
+	if ServerWindowName != "" {
+		StopServerWindow()
 	}
 
 	// Build the final command with env vars prefix
@@ -186,64 +207,86 @@ func StartServerSplit(workDir, serverCommand string, envVars map[string]string) 
 		}
 	}
 
-	// Create horizontal split (left/right) with the server command
-	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir, "-P", "-F", "#{pane_id}", finalCommand)
-	output, err := cmd.Output()
-	if err != nil {
+	windowName := "🖥️ server: " + worktreeName
+
+	// Create new window right after the cockpit window
+	cmd := exec.Command("tmux", "new-window", "-a", "-t", "🎛️ cockpit", "-n", windowName, "-c", workDir, finalCommand)
+	if err := cmd.Run(); err != nil {
 		return "", err
 	}
 
-	paneID := strings.TrimSpace(string(output))
-	ServerPaneID = paneID
+	ServerWindowName = windowName
+	serverWorktreeName = worktreeName
 
-	// Focus back on the original pane (the dashboard)
-	exec.Command("tmux", "select-pane", "-L").Run()
+	// Mark the worktree window with 🔌 prefix (preserving other suffixes)
+	if actualName, found := FindWindowByName(worktreeName); found && !strings.HasPrefix(actualName, ServerPrefix) {
+		RenameWindow(actualName, ServerPrefix+actualName)
+	}
 
-	return paneID, nil
+	return windowName, nil
 }
 
-// StopServerSplit kills the server split pane
-func StopServerSplit() error {
-	if ServerPaneID == "" {
+const serverWindowPrefix = "🖥️ server: "
+
+// FindServerWindow scans tmux windows for one matching the server prefix
+// Returns the window name and the pane's working directory if found
+func FindServerWindow() (windowName string, workDir string, found bool) {
+	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_name}\t#{pane_current_path}")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", "", false
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		name, path, ok := strings.Cut(line, "\t")
+		if ok && strings.HasPrefix(name, serverWindowPrefix) {
+			// Restore worktree name tracking
+			serverWorktreeName = strings.TrimPrefix(name, serverWindowPrefix)
+			// Ensure the worktree window has the 🔌 prefix
+			if actualName, found := FindWindowByName(serverWorktreeName); found && !strings.HasPrefix(actualName, ServerPrefix) {
+				RenameWindow(actualName, ServerPrefix+actualName)
+			}
+			return name, path, true
+		}
+	}
+	return "", "", false
+}
+
+// clearServerPrefix removes the 🔌 prefix from the worktree window, preserving other suffixes
+func clearServerPrefix() {
+	if serverWorktreeName == "" {
+		return
+	}
+	if actualName, found := FindWindowByName(serverWorktreeName); found && strings.HasPrefix(actualName, ServerPrefix) {
+		RenameWindow(actualName, strings.TrimPrefix(actualName, ServerPrefix))
+	}
+}
+
+// StopServerWindow kills the server window
+func StopServerWindow() error {
+	if ServerWindowName == "" {
 		return nil
 	}
 
-	cmd := exec.Command("tmux", "kill-pane", "-t", ServerPaneID)
-	err := cmd.Run()
-	ServerPaneID = ""
+	clearServerPrefix()
+
+	err := KillWindow(ServerWindowName)
+	ServerWindowName = ""
+	serverWorktreeName = ""
 	return err
 }
 
-// PaneExists checks if a tmux pane with the given ID exists
-func PaneExists(paneID string) bool {
-	if paneID == "" {
-		return false
-	}
-
-	cmd := exec.Command("tmux", "list-panes", "-a", "-F", "#{pane_id}")
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-
-	panes := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, p := range panes {
-		if p == paneID {
-			return true
-		}
-	}
-
-	return false
-}
-
-// IsServerRunning returns true if a server split is currently running
+// IsServerRunning returns true if a server window is currently running
 func IsServerRunning() bool {
-	if ServerPaneID == "" {
+	if ServerWindowName == "" {
 		return false
 	}
 
-	if !PaneExists(ServerPaneID) {
-		ServerPaneID = ""
+	if !WindowExists(ServerWindowName) {
+		clearServerPrefix()
+		if serverWorktreeName != "" {
+			serverWorktreeName = ""
+		}
+		ServerWindowName = ""
 		return false
 	}
 
@@ -273,7 +316,7 @@ func EnsureCockpitSession(projectDir string) (needsExec bool, sessionName string
 
 	if IsInsideTmux() {
 		// Already in tmux, just rename the current window
-		RenameCurrentWindow("cockpit 🎛️")
+		RenameCurrentWindow("🎛️ cockpit")
 		return false, ""
 	}
 
@@ -296,14 +339,14 @@ func ExecIntoSession(sessionName, workDir string) error {
 	}
 
 	// Try to create a new session with the cockpit window, running ourselves
-	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-c", workDir, "-n", "cockpit 🎛️", selfPath)
+	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-c", workDir, "-n", "🎛️ cockpit", selfPath)
 	if err := cmd.Run(); err != nil {
 		// Session might already exist - select the cockpit window if it exists, or create it
-		if actualName, found := FindWindowByName("cockpit 🎛️"); found {
+		if actualName, found := FindWindowByName("🎛️ cockpit"); found {
 			SelectWindow(actualName)
 		} else {
 			// Create a new window in the existing session
-			exec.Command("tmux", "new-window", "-t", sessionName, "-n", "cockpit 🎛️", "-c", workDir, selfPath).Run()
+			exec.Command("tmux", "new-window", "-t", sessionName, "-n", "🎛️ cockpit", "-c", workDir, selfPath).Run()
 		}
 	}
 

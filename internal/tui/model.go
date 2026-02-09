@@ -85,23 +85,13 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) loadServerState() tea.Msg {
-	state, err := waiting.LoadServerState(m.projectRoot)
-	if err != nil || state == nil {
-		return nil
+	if windowName, workDir, found := tmux.FindServerWindow(); found {
+		tmux.ServerWindowName = windowName
+		return serverStateMsg{
+			worktreePath: workDir,
+		}
 	}
-
-	// Verify the pane still exists
-	if !tmux.PaneExists(state.PaneID) {
-		waiting.ClearServerState(m.projectRoot)
-		return nil
-	}
-
-	// Restore state
-	tmux.ServerPaneID = state.PaneID
-	return serverStateMsg{
-		worktreePath: state.WorktreePath,
-		paneID:       state.PaneID,
-	}
+	return nil
 }
 
 func (m Model) loadWorktrees() tea.Msg {
@@ -165,7 +155,6 @@ type tickMsg time.Time
 
 type serverStateMsg struct {
 	worktreePath string
-	paneID       string
 }
 
 type sessionAddedMsg struct{}
@@ -257,10 +246,9 @@ func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Check if server pane was killed externally
+	// Check if server window was killed externally
 	if m.serverWorktreePath != "" && !tmux.IsServerRunning() {
 		m.serverWorktreePath = ""
-		waiting.ClearServerState(m.projectRoot)
 	}
 
 	// Check which sessions have Claude actively running
@@ -432,9 +420,8 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 			// Check if server is running in this worktree - toggle off
 			if m.serverWorktreePath == item.Worktree.Path {
-				tmux.StopServerSplit()
+				tmux.StopServerWindow()
 				m.serverWorktreePath = ""
-				waiting.ClearServerState(m.projectRoot)
 				return m, nil
 			}
 
@@ -445,13 +432,12 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 
 			// Start server (will auto-stop existing one)
-			paneID, err := tmux.StartServerSplit(item.Worktree.Path, m.options.ServerCommand, m.options.ServerEnv)
+			_, err := tmux.StartServerWindow(item.Worktree.Name, item.Worktree.Path, m.options.ServerCommand, m.options.ServerEnv)
 			if err != nil {
 				m.errorMessage = fmt.Sprintf("Error starting server: %v", err)
 				return m, nil
 			}
 			m.serverWorktreePath = item.Worktree.Path
-			waiting.SaveServerState(m.projectRoot, paneID, item.Worktree.Path)
 		}
 
 	case key.Matches(msg, keys.Shell):
