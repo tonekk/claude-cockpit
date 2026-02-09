@@ -126,7 +126,7 @@ func main() {
 	}
 
 	// Find the project root (look for .git directory)
-	projectRoot, err := findProjectRoot()
+	projectRoot, err := findProjectRootFrom("")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -189,10 +189,6 @@ func listWorktrees(projectRoot string) {
 
 		fmt.Printf("%-10s %-45s %s\n", wt.Name, wt.Branch, statusStr)
 	}
-}
-
-func findProjectRoot() (string, error) {
-	return findProjectRootFrom("")
 }
 
 func findProjectRootFrom(startDir string) (string, error) {

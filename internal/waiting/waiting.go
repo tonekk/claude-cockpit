@@ -97,21 +97,6 @@ func ListWaiting(projectRoot string) ([]string, error) {
 	return paths, nil
 }
 
-// IsWaiting checks if a specific path has a waiting session
-func IsWaiting(projectRoot, worktreePath string) bool {
-	paths, err := ListWaiting(projectRoot)
-	if err != nil {
-		return false
-	}
-
-	for _, p := range paths {
-		if p == worktreePath {
-			return true
-		}
-	}
-	return false
-}
-
 // ServerState represents the running server state
 type ServerState struct {
 	PaneID       string `json:"pane_id"`

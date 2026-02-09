@@ -73,30 +73,6 @@ func OpenWorktree(name, worktreePath string) (isNew bool, err error) {
 	return true, nil
 }
 
-// StartSession starts a new tmux session if not already in one
-func StartSession(sessionName string) error {
-	if IsInsideTmux() {
-		return nil
-	}
-
-	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName)
-	if err := cmd.Run(); err != nil {
-		// Session might already exist, try to attach
-		cmd = exec.Command("tmux", "attach-session", "-t", sessionName)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	}
-
-	// Attach to the new session
-	cmd = exec.Command("tmux", "attach-session", "-t", sessionName)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
 // FindWindowByName finds a tmux window by name, checking both with and without waiting suffix
 // Returns the actual window name and whether it was found
 func FindWindowByName(name string) (string, bool) {
@@ -262,22 +238,6 @@ func OpenShellSplit(workDir string) error {
 // RenameCurrentWindow renames the current tmux window
 func RenameCurrentWindow(newName string) error {
 	cmd := exec.Command("tmux", "rename-window", newName)
-	return cmd.Run()
-}
-
-// GetCurrentSessionName returns the current tmux session name
-func GetCurrentSessionName() (string, error) {
-	cmd := exec.Command("tmux", "display-message", "-p", "#{session_name}")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(output)), nil
-}
-
-// RenameSession renames a tmux session
-func RenameSession(oldName, newName string) error {
-	cmd := exec.Command("tmux", "rename-session", "-t", oldName, newName)
 	return cmd.Run()
 }
 
