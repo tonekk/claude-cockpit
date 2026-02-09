@@ -280,7 +280,7 @@ func handleNotifyWaiting() {
 	}
 
 	name := filepath.Base(sessionRoot)
-	_ = tmux.MarkWindowWaiting(name)
+	_ = tmux.SetWindowStatus(name, "waiting")
 }
 
 func printUsage() {
@@ -324,7 +324,7 @@ func handleClearWaiting() {
 	}
 
 	name := filepath.Base(sessionRoot)
-	_ = tmux.ClearWindowWaiting(name)
+	_ = tmux.SetWindowStatus(name, "")
 }
 
 // handleRunSetup runs setup commands from cockpit.yml in the current directory

@@ -115,4 +115,5 @@ var (
 	sectionTitleStyle = lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.Color("252"))
+
 )

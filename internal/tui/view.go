@@ -121,7 +121,7 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 		indicator = "▾"
 	}
 
-	active := m.activeSessions[item.Session.Path]
+	hasWindow := m.tmuxWindows[item.Session.Path]
 
 	styledIndicator := indicator
 	if isSelected {
@@ -131,7 +131,7 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 	// First line: indicator, name, path
 	nameStyle := sessionNameStyle
 	pathStyle := sessionPathStyle
-	if !active {
+	if !hasWindow {
 		nameStyle = dimStyle
 		pathStyle = dimStyle
 	}
@@ -150,13 +150,13 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 	if item.GitStatus != nil {
 		if item.GitStatus.Clean {
 			s := cleanStyle
-			if !active {
+			if !hasWindow {
 				s = dimStyle
 			}
 			statusParts = append(statusParts, s.Render("✓ clean"))
 		} else {
 			totalFiles := len(item.GitStatus.Files)
-			if active {
+			if hasWindow {
 				statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
 			} else {
 				statusParts = append(statusParts, dimStyle.Render(fmt.Sprintf("● %d files", totalFiles)))
@@ -164,21 +164,21 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 
 			if item.GitStatus.StagedCount > 0 {
 				s := stagedStyle
-				if !active {
+				if !hasWindow {
 					s = dimStyle
 				}
 				statusParts = append(statusParts, s.Render(fmt.Sprintf("+%d staged", item.GitStatus.StagedCount)))
 			}
 			if item.GitStatus.ModifiedCount > 0 {
 				s := modifiedStyle
-				if !active {
+				if !hasWindow {
 					s = dimStyle
 				}
 				statusParts = append(statusParts, s.Render(fmt.Sprintf("~%d modified", item.GitStatus.ModifiedCount)))
 			}
 			if item.GitStatus.UntrackedCount > 0 {
 				s := untrackedStyle
-				if !active {
+				if !hasWindow {
 					s = dimStyle
 				}
 				statusParts = append(statusParts, s.Render(fmt.Sprintf("?%d untracked", item.GitStatus.UntrackedCount)))
@@ -272,7 +272,7 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 
 	// Name (directory basename)
 	name := item.Worktree.Name
-	active := m.activeSessions[item.Worktree.Path]
+	hasWindow := m.tmuxWindows[item.Worktree.Path]
 
 	// Color the indicator when selected
 	styledIndicator := indicator
@@ -283,7 +283,7 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 	// First line: indicator, issue ID, badges, branch
 	nameStyle := issueStyle
 	bStyle := branchStyle
-	if !active {
+	if !hasWindow {
 		nameStyle = dimStyle
 		bStyle = dimStyle
 	}
@@ -302,13 +302,13 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 
 	if status.Clean {
 		s := cleanStyle
-		if !active {
+		if !hasWindow {
 			s = dimStyle
 		}
 		statusParts = append(statusParts, s.Render("✓ clean"))
 	} else {
 		totalFiles := len(status.Files)
-		if active {
+		if hasWindow {
 			statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
 		} else {
 			statusParts = append(statusParts, dimStyle.Render(fmt.Sprintf("● %d files", totalFiles)))
@@ -316,21 +316,21 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 
 		if status.StagedCount > 0 {
 			s := stagedStyle
-			if !active {
+			if !hasWindow {
 				s = dimStyle
 			}
 			statusParts = append(statusParts, s.Render(fmt.Sprintf("+%d staged", status.StagedCount)))
 		}
 		if status.ModifiedCount > 0 {
 			s := modifiedStyle
-			if !active {
+			if !hasWindow {
 				s = dimStyle
 			}
 			statusParts = append(statusParts, s.Render(fmt.Sprintf("~%d modified", status.ModifiedCount)))
 		}
 		if status.UntrackedCount > 0 {
 			s := untrackedStyle
-			if !active {
+			if !hasWindow {
 				s = dimStyle
 			}
 			statusParts = append(statusParts, s.Render(fmt.Sprintf("?%d untracked", status.UntrackedCount)))
@@ -339,14 +339,14 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 
 	if status.Ahead > 0 {
 		text := fmt.Sprintf("↑%d", status.Ahead)
-		if !active {
+		if !hasWindow {
 			text = dimStyle.Render(text)
 		}
 		statusParts = append(statusParts, text)
 	}
 	if status.Behind > 0 {
 		text := fmt.Sprintf("↓%d", status.Behind)
-		if !active {
+		if !hasWindow {
 			text = dimStyle.Render(text)
 		}
 		statusParts = append(statusParts, text)
