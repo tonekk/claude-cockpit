@@ -79,7 +79,7 @@ func (m Model) Init() tea.Cmd {
 		m.loadWorktrees,
 		m.loadSessions,
 		m.loadServerState,
-		tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) }),
+		tea.Tick(500 * time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) }),
 	)
 }
 
@@ -268,7 +268,7 @@ func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
 	}
 
 	// Continue polling
-	return m, tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
+	return m, tea.Tick(500 * time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
