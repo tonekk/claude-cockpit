@@ -360,10 +360,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				// Move to worktrees section
 				m.inSessionsSection = false
-				m.cursor = len(m.worktreeItems) - 1
-				if m.cursor < 0 {
-					m.cursor = 0
-				}
+				m.cursor = max(len(m.worktreeItems)-1, 0)
 			}
 		} else if m.cursor > 0 {
 			m.cursor--
