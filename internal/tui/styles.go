@@ -55,9 +55,6 @@ var (
 				Foreground(lipgloss.Color("42")). // green
 				Bold(true)
 
-	configKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243"))
-
 	configValueStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("39"))
 

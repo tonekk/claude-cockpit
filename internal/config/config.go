@@ -80,7 +80,7 @@ func runSetupCommand(cmdStr string, worktreePath string) (string, error) {
 	err := cmd.Run()
 
 	if err != nil {
-		return stdout.String(), fmt.Errorf("Error running `%s`:\n%s", cmdStr, stderr.String())
+		return stdout.String(), fmt.Errorf("error running `%s`:\n%s", cmdStr, stderr.String())
 	}
 
 	return stdout.String(), nil
