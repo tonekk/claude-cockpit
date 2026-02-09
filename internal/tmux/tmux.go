@@ -302,8 +302,12 @@ func IsServerRunning() bool {
 }
 
 // OpenDiff opens git diff in a horizontal split at the given directory
-func OpenDiff(workDir string) error {
-	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir, "git", "diff")
+func OpenDiff(workDir string, staged bool) error {
+	diffCmd := "git diff"
+	if staged {
+		diffCmd = "git diff --staged"
+	}
+	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir, "bash", "-c", diffCmd+"; echo; read -n 1 -s -p 'Press any key to close'")
 	return cmd.Run()
 }
 

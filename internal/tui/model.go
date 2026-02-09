@@ -375,6 +375,20 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
+	case key.Matches(msg, keys.ForceDelete):
+		if !m.inSessionsSection && m.cursor < len(m.worktreeItems) {
+			wt := m.worktreeItems[m.cursor]
+			if wt.Worktree.Branch == "main" {
+				m.errorMessage = "Can't remove main worktree"
+				return m, nil
+			}
+			m.showConfirm = true
+			m.confirmHeader = "Force Remove Worktree"
+			m.confirmMessage = "Discard all changes and remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
+			m.confirmHandler = m.forceRemoveSelectedWorktree
+		}
+		return m, nil
+
 	case key.Matches(msg, keys.AddWorktree):
 		m.prompts.activate("worktreeDir")
 		return m, textinput.Blink
@@ -491,7 +505,13 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Diff):
 		path := m.getCurrentPath()
 		if path != "" {
-			tmux.OpenDiff(path)
+			tmux.OpenDiff(path, false)
+		}
+
+	case key.Matches(msg, keys.DiffStaged):
+		path := m.getCurrentPath()
+		if path != "" {
+			tmux.OpenDiff(path, true)
 		}
 	}
 
@@ -534,6 +554,14 @@ func openEditor(path, editor string) tea.Cmd {
 func (m Model) removeSelectedWorktree() (func() tea.Msg, error) {
 	wt := m.worktreeItems[m.cursor]
 	if err := worktree.Remove(wt.Worktree); err != nil {
+		return nil, err
+	}
+	return m.loadWorktrees, nil
+}
+
+func (m Model) forceRemoveSelectedWorktree() (func() tea.Msg, error) {
+	wt := m.worktreeItems[m.cursor]
+	if err := worktree.ForceRemove(wt.Worktree); err != nil {
 		return nil, err
 	}
 	return m.loadWorktrees, nil
