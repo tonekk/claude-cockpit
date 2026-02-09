@@ -3,6 +3,7 @@ package worktree
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,6 +46,14 @@ func Create(repoPath, dirName, branchName string) error {
 			return err
 		}
 	}
+
+	// Pull latest main before creating the worktree
+	pull := exec.Command("git", "pull")
+	pull.Dir = repoPath
+	if err := pull.Run(); err != nil {
+		return fmt.Errorf("failed to pull main: %w", err)
+	}
+
 	worktreePath := filepath.Join(worktreesDir, dirName)
 	cmd := exec.Command("git", "worktree", "add", "-b", branchName, worktreePath)
 	cmd.Dir = repoPath

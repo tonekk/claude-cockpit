@@ -20,7 +20,7 @@ A TUI dashboard for managing parallel Claude Code sessions across git worktrees 
 
 - 📂 **Worktree overview** - All your worktrees at a glance with git status
 - 🔄 **Session management** - Add any directory as an additional session
-- ⏳ **Waiting indicator** - Know when Claude is waiting for your input
+- 🟢🔴 **Claude status** - Green when Claude is working, red when waiting for input
 - 🚀 **One-key tmux integration** - Jump into any session instantly
 - 📝 **Context restoration** - Pick up exactly where you left off
 - 🖥️ **Server window** - Run your dev server in a dedicated tmux window
@@ -62,12 +62,14 @@ claude-cockpit -E "cursor"
 | Key | What it does |
 |-----|--------------|
 | `Enter` | Open in tmux with Claude |
-| `o` | Open in your editor |
+| `o` | Open in tmux (no Claude) |
+| `e` | Open in your editor |
 | `s` | Toggle server |
 | `D` | Open git diff in split |
-| `c` | Shell split |
 | `a` | Add session |
-| `d` | Delete session |
+| `w` | Add worktree |
+| `d` | Delete worktree/session |
+| `c` | Config |
 | `l` / `→` | Expand |
 | `h` / `←` | Collapse |
 | `j/k` | Navigate |
@@ -124,7 +126,7 @@ Want to know when Claude is waiting for you across all your sessions? Add these 
 }
 ```
 
-Now you'll see ⏳ next to any session that needs your attention. No more wondering "wait, did Claude finish?"
+Now your tmux window names show Claude's status: 🟢 when actively working, 🔴 when waiting for your input. No more wondering "wait, did Claude finish?"
 
 ## Environment Variables
 

@@ -7,9 +7,9 @@ type KeyMap struct {
 	Up          key.Binding
 	Down        key.Binding
 	Enter       key.Binding
-	OpenCode    key.Binding
+	Open        key.Binding
+	OpenEditor  key.Binding
 	Server      key.Binding
-	Shell       key.Binding
 	Expand      key.Binding
 	Collapse    key.Binding
 	Help        key.Binding
@@ -27,9 +27,9 @@ func (km KeyMap) AllBindings() []key.Binding {
 		km.Up,
 		km.Down,
 		km.Enter,
-		km.OpenCode,
+		km.Open,
+		km.OpenEditor,
 		km.Server,
-		km.Shell,
 		km.Expand,
 		km.Collapse,
 		km.Help,
@@ -56,17 +56,17 @@ var keys = KeyMap{
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "open in tmux"),
 	),
-	OpenCode: key.NewBinding(
+	Open: key.NewBinding(
 		key.WithKeys("o"),
-		key.WithHelp("o", "open in editor"),
+		key.WithHelp("o", "open tmux (no claude)"),
+	),
+	OpenEditor: key.NewBinding(
+		key.WithKeys("e"),
+		key.WithHelp("e", "open in editor"),
 	),
 	Server: key.NewBinding(
 		key.WithKeys("s"),
 		key.WithHelp("s", "start/stop server"),
-	),
-	Shell: key.NewBinding(
-		key.WithKeys("c"),
-		key.WithHelp("c", "open shell"),
 	),
 	Expand: key.NewBinding(
 		key.WithKeys("l", "right"),
@@ -81,8 +81,8 @@ var keys = KeyMap{
 		key.WithHelp("?", "help"),
 	),
 	Config: key.NewBinding(
-		key.WithKeys("C"),
-		key.WithHelp("C", "config"),
+		key.WithKeys("c"),
+		key.WithHelp("c", "config"),
 	),
 	AddSession: key.NewBinding(
 		key.WithKeys("a"),

@@ -48,8 +48,9 @@ type Model struct {
 	width              int
 	height             int
 	err                error
-	waitingSessions    map[string]bool // paths with sessions waiting for input
-	activeSessions     map[string]bool // paths with Claude actively running
+	waitingSessions map[string]bool   // paths with sessions waiting for input
+	tmuxWindows     map[string]bool   // paths with tmux windows open
+	claudeStatus    map[string]string // "running", "waiting", or "" (no claude)
 	options            Options
 	config             config.Config
 	serverWorktreePath string // path of worktree where server is running
@@ -238,9 +239,8 @@ func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
 			// Window gone — clear stale waiting state
 			waiting.ClearWaiting(m.projectRoot, p)
 		} else if !tmux.IsClaudeRunningInWindow(name) {
-			// Window exists but Claude exited — clear waiting state and window indicator
+			// Window exists but Claude exited — clear waiting state
 			waiting.ClearWaiting(m.projectRoot, p)
-			tmux.ClearWindowWaiting(name)
 		} else {
 			m.waitingSessions[p] = true
 		}
@@ -251,23 +251,58 @@ func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
 		m.serverWorktreePath = ""
 	}
 
-	// Check which sessions have Claude actively running
-	m.activeSessions = make(map[string]bool)
+	// Check tmux window and Claude status for all items
+	m.tmuxWindows = make(map[string]bool)
+	m.claudeStatus = make(map[string]string)
 	for i := range m.sessionItems {
 		name := m.sessionItems[i].Session.Name
+		path := m.sessionItems[i].Session.Path
 		_, m.sessionItems[i].TmuxOpen = tmux.FindWindowByName(name)
-		if m.sessionItems[i].TmuxOpen && tmux.IsClaudeRunningInWindow(name) {
-			m.activeSessions[m.sessionItems[i].Session.Path] = true
+		if m.sessionItems[i].TmuxOpen {
+			m.tmuxWindows[path] = true
+			if tmux.IsClaudeRunningInWindow(name) {
+				if m.waitingSessions[path] {
+					m.claudeStatus[path] = "waiting"
+				} else {
+					m.claudeStatus[path] = "running"
+					tmux.SetWindowStatus(name, "running")
+				}
+			} else {
+				tmux.SetWindowStatus(name, "")
+			}
 		}
 	}
 	for _, item := range m.worktreeItems {
-		if tmux.IsClaudeRunningInWindow(item.Worktree.Name) {
-			m.activeSessions[item.Worktree.Path] = true
+		name := item.Worktree.Name
+		path := item.Worktree.Path
+		if _, found := tmux.FindWindowByName(name); found {
+			m.tmuxWindows[path] = true
+			if tmux.IsClaudeRunningInWindow(name) {
+				if m.waitingSessions[path] {
+					m.claudeStatus[path] = "waiting"
+				} else {
+					m.claudeStatus[path] = "running"
+					tmux.SetWindowStatus(name, "running")
+				}
+			} else {
+				tmux.SetWindowStatus(name, "")
+			}
 		}
 	}
 
 	// Continue polling
 	return m, tea.Tick(500 * time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
+// claudeWindowStatus returns "running", "waiting", or "" based on Claude's state in a window.
+func claudeWindowStatus(windowName string, isWaiting bool) string {
+	if !tmux.IsClaudeRunningInWindow(windowName) {
+		return ""
+	}
+	if isWaiting {
+		return "waiting"
+	}
+	return "running"
 }
 
 func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -404,11 +439,11 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			item := m.worktreeItems[m.cursor]
 			isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 			if isNew {
-				m.config.SendSetupAndClaudeToTmux("claude \"Hi\"")
+				m.config.SendSetupAndClaudeToTmux("claude")
 			}
 		}
 
-	case key.Matches(msg, keys.OpenCode):
+	case key.Matches(msg, keys.OpenEditor):
 		path := m.getCurrentPath()
 		if path != "" {
 			return m, openEditor(path, m.options.Editor)
@@ -440,10 +475,17 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.serverWorktreePath = item.Worktree.Path
 		}
 
-	case key.Matches(msg, keys.Shell):
-		path := m.getCurrentPath()
-		if path != "" {
-			tmux.OpenShellSplit(path)
+	case key.Matches(msg, keys.Open):
+		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
+			session := m.sessionItems[m.cursor]
+			if session.TmuxOpen {
+				tmux.SelectWindow(session.Session.Name)
+			} else {
+				tmux.NewWindow(session.Session.Name, session.Session.Path)
+			}
+		} else if m.cursor < len(m.worktreeItems) {
+			item := m.worktreeItems[m.cursor]
+			tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 		}
 
 	case key.Matches(msg, keys.Diff):

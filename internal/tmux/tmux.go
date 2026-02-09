@@ -7,8 +7,11 @@ import (
 	"strings"
 )
 
-const WaitingSuffix = " 🔴"
-const ServerPrefix = "🔌 "
+const (
+	RunningSuffix = " 🟢"
+	WaitingSuffix = " 🔴"
+	ServerPrefix  = "🔌 "
+)
 
 // IsInsideTmux returns true if we're running inside a tmux session
 func IsInsideTmux() bool {
@@ -89,11 +92,13 @@ func FindWindowByName(name string) (string, bool) {
 	}
 
 	// Match all prefix/suffix combinations
-	candidates := []string{
-		name,
-		ServerPrefix + name,
-		name + WaitingSuffix,
-		ServerPrefix + name + WaitingSuffix,
+	suffixes := []string{"", RunningSuffix, WaitingSuffix}
+	prefixes := []string{"", ServerPrefix}
+	var candidates []string
+	for _, p := range prefixes {
+		for _, s := range suffixes {
+			candidates = append(candidates, p+name+s)
+		}
 	}
 
 	for _, w := range strings.Split(strings.TrimSpace(string(output)), "\n") {
@@ -129,28 +134,31 @@ func KillWindow(windowName string) error {
 	return nil
 }
 
-// MarkWindowWaiting adds the waiting suffix to a window's name
-func MarkWindowWaiting(name string) error {
+// SetWindowStatus updates the window name suffix to reflect Claude's state.
+// status can be "running", "waiting", or "" (no suffix).
+func SetWindowStatus(name, status string) error {
 	currentName, found := FindWindowByName(name)
 	if !found {
 		return nil
 	}
-	if strings.Contains(currentName, WaitingSuffix) {
-		return nil
-	}
-	return RenameWindow(currentName, currentName+WaitingSuffix)
-}
 
-// ClearWindowWaiting removes the waiting suffix from a window's name
-func ClearWindowWaiting(name string) error {
-	currentName, found := FindWindowByName(name)
-	if !found {
+	// Strip any existing suffix to get the base name
+	baseName := strings.TrimSuffix(strings.TrimSuffix(currentName, RunningSuffix), WaitingSuffix)
+
+	var newName string
+	switch status {
+	case "running":
+		newName = baseName + RunningSuffix
+	case "waiting":
+		newName = baseName + WaitingSuffix
+	default:
+		newName = baseName
+	}
+
+	if newName == currentName {
 		return nil
 	}
-	if !strings.Contains(currentName, WaitingSuffix) {
-		return nil
-	}
-	return RenameWindow(currentName, strings.Replace(currentName, WaitingSuffix, "", 1))
+	return RenameWindow(currentName, newName)
 }
 
 // IsClaudeRunningInWindow checks if claude is the current command in any pane of the given window
@@ -291,12 +299,6 @@ func IsServerRunning() bool {
 	}
 
 	return true
-}
-
-// OpenShellSplit opens a shell in a vertical split at the given directory
-func OpenShellSplit(workDir string) error {
-	cmd := exec.Command("tmux", "split-window", "-v", "-c", workDir)
-	return cmd.Run()
 }
 
 // OpenDiff opens git diff in a horizontal split at the given directory
