@@ -63,6 +63,7 @@ type Model struct {
 	confirmHeader      string
 	confirmMessage     string
 	confirmHandler     func() (func() tea.Msg, error)
+	tickCount          int // counts ticks for periodic git status refresh
 }
 
 // New creates a new TUI model
@@ -230,6 +231,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
+	m.tickCount++
+
+	// Refresh git status every 4 ticks (~2s)
+	if m.tickCount%4 == 0 {
+		for i := range m.worktreeItems {
+			status, _ := worktree.GetStatus(m.worktreeItems[i].Worktree.Path)
+			m.worktreeItems[i].Worktree.GitStatus = status
+		}
+		for i := range m.sessionItems {
+			if m.sessionItems[i].GitStatus != nil {
+				status, _ := worktree.GetStatus(m.sessionItems[i].Session.Path)
+				m.sessionItems[i].GitStatus = &status
+			}
+		}
+	}
+
 	// Poll for waiting sessions and clean up stale ones
 	paths, _ := waiting.ListWaiting(m.projectRoot)
 	m.waitingSessions = make(map[string]bool)
@@ -363,7 +380,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
 			session := m.sessionItems[m.cursor]
-			m.confirmHeader = "Remove Session"
+			m.confirmHeader = "Remove Additional Session"
 			m.confirmMessage = "Remove " + confirmTargetStyle.Render(session.Session.Name) + "?"
 			m.confirmHandler = m.removeSelectedSession
 		} else {
@@ -373,6 +390,20 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.confirmHandler = m.removeSelectedWorktree
 		}
 
+		return m, nil
+
+	case key.Matches(msg, keys.ForceDelete):
+		if !m.inSessionsSection && m.cursor < len(m.worktreeItems) {
+			wt := m.worktreeItems[m.cursor]
+			if wt.Worktree.Branch == "main" {
+				m.errorMessage = "Can't remove main worktree"
+				return m, nil
+			}
+			m.showConfirm = true
+			m.confirmHeader = "Force Remove Worktree"
+			m.confirmMessage = "Discard all changes and remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
+			m.confirmHandler = m.forceRemoveSelectedWorktree
+		}
 		return m, nil
 
 	case key.Matches(msg, keys.AddWorktree):
@@ -491,7 +522,13 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Diff):
 		path := m.getCurrentPath()
 		if path != "" {
-			tmux.OpenDiff(path)
+			tmux.OpenDiff(path, false)
+		}
+
+	case key.Matches(msg, keys.DiffStaged):
+		path := m.getCurrentPath()
+		if path != "" {
+			tmux.OpenDiff(path, true)
 		}
 	}
 
@@ -534,6 +571,14 @@ func openEditor(path, editor string) tea.Cmd {
 func (m Model) removeSelectedWorktree() (func() tea.Msg, error) {
 	wt := m.worktreeItems[m.cursor]
 	if err := worktree.Remove(wt.Worktree); err != nil {
+		return nil, err
+	}
+	return m.loadWorktrees, nil
+}
+
+func (m Model) forceRemoveSelectedWorktree() (func() tea.Msg, error) {
+	wt := m.worktreeItems[m.cursor]
+	if err := worktree.ForceRemove(wt.Worktree); err != nil {
 		return nil, err
 	}
 	return m.loadWorktrees, nil

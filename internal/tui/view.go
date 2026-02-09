@@ -40,7 +40,7 @@ func (m Model) View() string {
 	// Additional sessions section with border
 	if len(m.sessionItems) > 0 {
 		var sessionContent strings.Builder
-		sessionContent.WriteString(sectionTitleStyle.Render("Sessions"))
+		sessionContent.WriteString(sectionTitleStyle.Render("Additional Sessions"))
 		sessionContent.WriteString("\n\n")
 		for i, session := range m.sessionItems {
 			isSelected := m.inSessionsSection && i == m.cursor
@@ -51,7 +51,7 @@ func (m Model) View() string {
 	}
 
 	// Minimal help hint
-	b.WriteString(helpStyle.Render("[?] help  [a] add session  [C] config  [q] quit"))
+	b.WriteString(helpStyle.Render("[?] help  [q] quit"))
 
 	// Prompt popup
 	if promptPopup := m.renderPromptPopup(); promptPopup != "" {
@@ -116,9 +116,9 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
 	var b strings.Builder
 
 	// Indicator
-	indicator := "▸"
+	indicator := "▶"
 	if item.Expanded {
-		indicator = "▾"
+		indicator = "▼"
 	}
 
 	hasWindow := m.tmuxWindows[item.Session.Path]
@@ -265,9 +265,9 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 	status := item.Worktree.GitStatus
 
 	// Expand indicator (selection shown by highlight)
-	indicator := "▸"
+	indicator := "▶"
 	if item.Expanded {
-		indicator = "▾"
+		indicator = "▼"
 	}
 
 	// Name (directory basename)

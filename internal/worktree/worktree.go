@@ -79,6 +79,34 @@ func Remove(wt Worktree) error {
 	return cmd.Run()
 }
 
+// ForceRemove discards all changes and removes the worktree
+func ForceRemove(wt Worktree) error {
+	if wt.Branch == "main" {
+		return errors.New("can't remove main worktree")
+	}
+
+	if tmux.WindowExists(wt.Name) {
+		tmux.KillWindow(wt.Name)
+	}
+
+	// Discard all tracked changes
+	restore := exec.Command("git", "restore", ".")
+	restore.Dir = wt.Path
+	if err := restore.Run(); err != nil {
+		return fmt.Errorf("git restore failed: %w", err)
+	}
+
+	// Remove untracked files and directories
+	clean := exec.Command("git", "clean", "-fd")
+	clean.Dir = wt.Path
+	if err := clean.Run(); err != nil {
+		return fmt.Errorf("git clean failed: %w", err)
+	}
+
+	cmd := exec.Command("git", "worktree", "remove", wt.Path)
+	return cmd.Run()
+}
+
 // List returns all worktrees for the given git repository
 func List(repoPath string) ([]Worktree, error) {
 	cmd := exec.Command("git", "worktree", "list", "--porcelain")
