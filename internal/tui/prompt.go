@@ -27,7 +27,7 @@ type PromptManager struct {
 
 func NewPromptManager() PromptManager {
 	prompts := []Prompt{
-		NewPrompt("session", "Add Session", "~/path/to/directory", acceptSession),
+		NewPrompt("session", "Add Additional Session", "~/path/to/directory", acceptSession),
 		NewPrompt("worktreeDir", "Add Worktree - Choose directory name", "directory_name", acceptWorktreeDir),
 		NewPrompt("worktreeBranch", "Add Worktree - Choose branch name", "feature/whatever-comes-to-your-mind", acceptWorktreeBranch),
 	}
@@ -107,7 +107,7 @@ func acceptSession(m Model, path string) (tea.Model, tea.Cmd) {
 	}
 	// Add to sessions
 	if err := sessions.Add(m.projectRoot, path); err != nil {
-		m.errorMessage = fmt.Sprintf("Error adding session: %v", err)
+		m.errorMessage = fmt.Sprintf("Error adding additional session: %v", err)
 		m.prompts.deactivate()
 		return m, nil
 	}

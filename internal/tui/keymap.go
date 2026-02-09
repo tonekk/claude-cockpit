@@ -86,15 +86,15 @@ var keys = KeyMap{
 	),
 	AddSession: key.NewBinding(
 		key.WithKeys("a"),
-		key.WithHelp("a", "add session"),
+		key.WithHelp("a", "add additional session"),
 	),
 	Delete: key.NewBinding(
-		key.WithKeys("d"),
-		key.WithHelp("d", "delete worktree/session"),
+		key.WithKeys("x"),
+		key.WithHelp("x", "delete worktree/session"),
 	),
 	Diff: key.NewBinding(
-		key.WithKeys("D"),
-		key.WithHelp("D", "open diff"),
+		key.WithKeys("d"),
+		key.WithHelp("d", "open diff"),
 	),
 	AddWorktree: key.NewBinding(
 		key.WithKeys("w"),

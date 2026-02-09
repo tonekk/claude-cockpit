@@ -363,7 +363,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
 			session := m.sessionItems[m.cursor]
-			m.confirmHeader = "Remove Session"
+			m.confirmHeader = "Remove Additional Session"
 			m.confirmMessage = "Remove " + confirmTargetStyle.Render(session.Session.Name) + "?"
 			m.confirmHandler = m.removeSelectedSession
 		} else {
