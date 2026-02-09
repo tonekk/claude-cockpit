@@ -23,7 +23,7 @@ var (
 	cleanStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("42"))
 
-	contextStyle = lipgloss.NewStyle().
+	dimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243")).
 			Italic(true)
 
@@ -54,13 +54,6 @@ var (
 	serverRunningStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("42")). // green
 				Bold(true)
-
-	stepStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243")).
-			Italic(true)
-
-	stepTimestampStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("237"))
 
 	configKeyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("243"))

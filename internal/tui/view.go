@@ -170,7 +170,7 @@ func (m Model) renderSessionItem(item SessionItem, isSelected bool, width int) s
 			}
 		}
 	} else {
-		statusParts = append(statusParts, contextStyle.Render("(not a git repo)"))
+		statusParts = append(statusParts, dimStyle.Render("(not a git repo)"))
 	}
 
 	line2 := "    " + strings.Join(statusParts, "  ")
@@ -315,49 +315,9 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 		statusParts = append(statusParts, fmt.Sprintf("↓%d", status.Behind))
 	}
 
-	// Only show [context] if there are no steps (steps imply context exists)
-	if item.HasContext && (item.Context == nil || len(item.Context.Steps) == 0) {
-		statusParts = append(statusParts, contextStyle.Render("[context]"))
-	}
-
 	line2 := "    " + strings.Join(statusParts, "  ")
 	b.WriteString(line2)
 	b.WriteString("\n")
-
-	// Show steps from context (if any)
-	if item.Context != nil && len(item.Context.Steps) > 0 {
-		steps := item.Context.Steps
-		if item.Expanded {
-			// Show last 5 steps in chronological order with timestamps
-			start := 0
-			if len(steps) > 5 {
-				start = len(steps) - 5
-			}
-			for i := start; i < len(steps); i++ {
-				step := steps[i]
-				// Truncate message if needed (indent=4, timestamp~20, buffer=3)
-				msg := truncateString(step.Message, width-27)
-				stepLine := fmt.Sprintf("    %s %s",
-					stepTimestampStyle.Render("["+step.Timestamp+"]"),
-					stepStyle.Render(msg),
-				)
-				b.WriteString(stepLine)
-				b.WriteString("\n")
-			}
-			// Add blank line before file tree if there are files
-			if !status.Clean {
-				b.WriteString("\n")
-			}
-		} else {
-			// Collapsed: show only the last step message (no timestamp)
-			lastStep := steps[len(steps)-1]
-			// Truncate message if needed (indent=4, buffer=3)
-			msg := truncateString(lastStep.Message, width-7)
-			stepLine := fmt.Sprintf("    %s", stepStyle.Render(msg))
-			b.WriteString(stepLine)
-			b.WriteString("\n")
-		}
-	}
 
 	// Expanded file tree
 	if item.Expanded && !status.Clean {
@@ -371,16 +331,6 @@ func (m Model) renderItem(item WorktreeItem, isSelected bool, width int) string 
 	return b.String()
 }
 
-// truncateString truncates a string to maxLen, adding "..." if truncated
-func truncateString(s string, maxLen int) string {
-	if maxLen <= 0 || len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return "..."
-	}
-	return s[:maxLen-3] + "..."
-}
 
 // renderFileTree renders all files as a unified tree with status indicators
 func renderFileTree(files []worktree.FileStatus) []string {

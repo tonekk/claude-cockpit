@@ -12,7 +12,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tonekk/claude-cockpit/internal/config"
-	"github.com/tonekk/claude-cockpit/internal/context"
 	"github.com/tonekk/claude-cockpit/internal/tmux"
 	"github.com/tonekk/claude-cockpit/internal/tui"
 	"github.com/tonekk/claude-cockpit/internal/waiting"
@@ -188,12 +187,7 @@ func listWorktrees(projectRoot string) {
 			statusStr = fmt.Sprintf("● %d files", len(status.Files))
 		}
 
-		contextStr := "[no context]"
-		if context.Exists(projectRoot, wt.Name) {
-			contextStr = "[context saved]"
-		}
-
-		fmt.Printf("%-10s %-45s %s  %s\n", wt.Name, wt.Branch, statusStr, contextStr)
+		fmt.Printf("%-10s %-45s %s\n", wt.Name, wt.Branch, statusStr)
 	}
 }
 
