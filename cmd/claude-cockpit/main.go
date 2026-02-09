@@ -69,14 +69,12 @@ func main() {
 	}
 
 	cwd, err := os.Getwd()
-
 	if err != nil {
 		panic(err)
 	}
 
 	// Read config
 	config, err := config.Load(cwd)
-
 	if err != nil {
 		panic(err)
 	}
@@ -126,7 +124,7 @@ func main() {
 	}
 
 	// Find the project root (look for .git directory)
-	projectRoot, err := findProjectRoot()
+	projectRoot, err := findProjectRootFrom("")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -191,10 +189,6 @@ func listWorktrees(projectRoot string) {
 	}
 }
 
-func findProjectRoot() (string, error) {
-	return findProjectRootFrom("")
-}
-
 func findProjectRootFrom(startDir string) (string, error) {
 	// First try git rev-parse
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
@@ -237,8 +231,9 @@ type hookInput struct {
 	Cwd string `json:"cwd"`
 }
 
-// handleNotifyWaiting is called by the Stop hook to mark a session as waiting
-func handleNotifyWaiting() {
+// parseHookInput reads and parses the JSON hook input from stdin,
+// then resolves the project root and session root from the cwd field.
+func parseHookInput() (projectRoot, sessionRoot string) {
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading stdin: %v\n", err)
@@ -257,7 +252,7 @@ func handleNotifyWaiting() {
 	}
 
 	// Use WORKTREE_DASHBOARD_PROJECT if set, otherwise find from cwd
-	projectRoot := os.Getenv("WORKTREE_DASHBOARD_PROJECT")
+	projectRoot = os.Getenv("WORKTREE_DASHBOARD_PROJECT")
 	if projectRoot == "" {
 		projectRoot, err = findProjectRootFrom(data.Cwd)
 		if err != nil {
@@ -267,17 +262,23 @@ func handleNotifyWaiting() {
 	}
 
 	// Find the worktree/session root from cwd (Claude may be in a subdirectory)
-	sessionRoot, err := findProjectRootFrom(data.Cwd)
+	sessionRoot, err = findProjectRootFrom(data.Cwd)
 	if err != nil {
 		sessionRoot = data.Cwd // fallback for non-git directories
 	}
+
+	return projectRoot, sessionRoot
+}
+
+// handleNotifyWaiting is called by the Stop hook to mark a session as waiting
+func handleNotifyWaiting() {
+	projectRoot, sessionRoot := parseHookInput()
 
 	if err := waiting.MarkWaiting(projectRoot, sessionRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "Error marking waiting: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Update tmux window name using session root basename
 	name := filepath.Base(sessionRoot)
 	_ = tmux.MarkWindowWaiting(name)
 }
@@ -315,46 +316,13 @@ func printUsage() {
 
 // handleClearWaiting is called by the UserPromptSubmit hook to clear waiting status
 func handleClearWaiting() {
-	input, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading stdin: %v\n", err)
-		os.Exit(1)
-	}
-
-	var data hookInput
-	if err := json.Unmarshal(input, &data); err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing JSON: %v\n", err)
-		os.Exit(1)
-	}
-
-	if data.Cwd == "" {
-		fmt.Fprintf(os.Stderr, "No cwd in input\n")
-		os.Exit(1)
-	}
-
-	// Use WORKTREE_DASHBOARD_PROJECT if set, otherwise find from cwd
-	projectRoot := os.Getenv("WORKTREE_DASHBOARD_PROJECT")
-	if projectRoot == "" {
-		var err error
-		projectRoot, err = findProjectRootFrom(data.Cwd)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
-	// Find the worktree/session root from cwd (Claude may be in a subdirectory)
-	sessionRoot, err := findProjectRootFrom(data.Cwd)
-	if err != nil {
-		sessionRoot = data.Cwd // fallback for non-git directories
-	}
+	projectRoot, sessionRoot := parseHookInput()
 
 	if err := waiting.ClearWaiting(projectRoot, sessionRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "Error clearing waiting: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Update tmux window name using session root basename
 	name := filepath.Base(sessionRoot)
 	_ = tmux.ClearWindowWaiting(name)
 }

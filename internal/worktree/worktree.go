@@ -54,11 +54,11 @@ func Create(repoPath, dirName, branchName string) error {
 
 func Remove(wt Worktree) error {
 	if wt.Branch == "main" {
-		return errors.New("Can't remove main worktree")
+		return errors.New("can't remove main worktree")
 	}
 
 	if !wt.GitStatus.Clean {
-		return errors.New("Can't remove dirty worktree")
+		return errors.New("can't remove dirty worktree")
 	}
 
 	if tmux.WindowExists(wt.Name) {

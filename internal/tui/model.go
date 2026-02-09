@@ -360,10 +360,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				// Move to worktrees section
 				m.inSessionsSection = false
-				m.cursor = len(m.worktreeItems) - 1
-				if m.cursor < 0 {
-					m.cursor = 0
-				}
+				m.cursor = max(len(m.worktreeItems)-1, 0)
 			}
 		} else if m.cursor > 0 {
 			m.cursor--
@@ -479,22 +476,18 @@ func openEditor(path, editor string) tea.Cmd {
 	}
 }
 
-func (m Model) removeSelectedWorktree() (handler func() tea.Msg, err error) {
+func (m Model) removeSelectedWorktree() (func() tea.Msg, error) {
 	wt := m.worktreeItems[m.cursor]
-
 	if err := worktree.Remove(wt.Worktree); err != nil {
 		return nil, err
 	}
-
 	return m.loadWorktrees, nil
 }
 
-func (m Model) removeSelectedSession() (handler func() tea.Msg, err error) {
+func (m Model) removeSelectedSession() (func() tea.Msg, error) {
 	session := m.sessionItems[m.cursor]
-
 	if err := sessions.Remove(m.projectRoot, session.Session); err != nil {
 		return nil, err
 	}
-
 	return m.loadSessions, nil
 }
