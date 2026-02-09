@@ -12,12 +12,12 @@
 
 ## Build Instructions
 
-**Always build AND install after making changes:**
+**Always build AND install after all changes are finished:**
 ```bash
-go build -o claude-cockpit ./cmd/claude-cockpit && go install ./cmd/claude-cockpit
+./rebuild.sh
 ```
 
-Never just build without installing - the user runs the installed binary.
+Always rebuild when you are done making changes - don't wait for the user to ask.
 
 Individual commands:
 ```bash
