@@ -445,6 +445,12 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if path != "" {
 			tmux.OpenShellSplit(path)
 		}
+
+	case key.Matches(msg, keys.Diff):
+		path := m.getCurrentPath()
+		if path != "" {
+			tmux.OpenDiff(path)
+		}
 	}
 
 	return m, nil

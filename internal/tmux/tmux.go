@@ -299,6 +299,12 @@ func OpenShellSplit(workDir string) error {
 	return cmd.Run()
 }
 
+// OpenDiff opens git diff in a horizontal split at the given directory
+func OpenDiff(workDir string) error {
+	cmd := exec.Command("tmux", "split-window", "-h", "-c", workDir, "git", "diff")
+	return cmd.Run()
+}
+
 // RenameCurrentWindow renames the current tmux window
 func RenameCurrentWindow(newName string) error {
 	cmd := exec.Command("tmux", "rename-window", newName)
