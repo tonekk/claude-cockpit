@@ -23,7 +23,9 @@ A TUI dashboard for managing parallel Claude Code sessions across git worktrees 
 - ⏳ **Waiting indicator** - Know when Claude is waiting for your input
 - 🚀 **One-key tmux integration** - Jump into any session instantly
 - 📝 **Context restoration** - Pick up exactly where you left off
-- 🖥️ **Server splits** - Run your dev server in a tmux pane
+- 🖥️ **Server window** - Run your dev server in a dedicated tmux window
+- 🔌 **Server indicator** - See which worktree has a server running right in the tmux status bar
+- 📊 **Diff view** - Open git diff in a split with one key
 
 ## Installation
 
@@ -62,6 +64,7 @@ claude-cockpit -E "cursor"
 | `Enter` | Open in tmux with Claude |
 | `o` | Open in your editor |
 | `s` | Toggle server |
+| `D` | Open git diff in split |
 | `c` | Shell split |
 | `a` | Add session |
 | `d` | Delete session |
