@@ -178,6 +178,16 @@ func (m Model) getCurrentPath() string {
 
 // Update handles messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Always handle ticks and window size, even during prompt input
+	switch msg := msg.(type) {
+	case tickMsg:
+		return m.handleTickMsg()
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		// fall through to prompt handling below
+	}
+
 	// Handle prompt input mode
 	if m.prompts.hasActive() {
 		return m.updatePrompt(msg)
@@ -185,8 +195,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		// already handled above
 
 	case worktreesMsg:
 		m.worktreeItems = msg.items
