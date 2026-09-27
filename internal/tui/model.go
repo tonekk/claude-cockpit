@@ -51,6 +51,7 @@ type Model struct {
 	confirmHeader      string
 	confirmMessage     string
 	confirmHandler     func() (func() tea.Msg, error)
+	confirmCancel      func() (func() tea.Msg, error) // optional, runs on any key other than y
 	tickCount          int // counts ticks for periodic git status refresh
 }
 
@@ -260,19 +261,24 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.confirmHeader = ""
 		m.confirmMessage = ""
 
+		run := m.confirmCancel
 		if key.Matches(msg, keys.Yes) {
-			handler, err := m.confirmHandler()
-			m.confirmHandler = nil
+			run = m.confirmHandler
+		}
+		m.confirmHandler = nil
+		m.confirmCancel = nil
 
-			if err != nil {
-				m.errorMessage = err.Error()
-				return m, nil
-			}
-
-			return m, handler
+		if run == nil {
+			return m, tea.ClearScreen
 		}
 
-		return m, tea.ClearScreen
+		handler, err := run()
+		if err != nil {
+			m.errorMessage = err.Error()
+			return m, nil
+		}
+
+		return m, tea.Batch(handler, tea.ClearScreen)
 	}
 
 	switch {
@@ -338,10 +344,31 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Enter):
 		if m.cursor < len(m.worktreeItems) {
 			item := m.worktreeItems[m.cursor]
-			isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
-			if isNew {
-				m.config.SendSetupAndClaudeToTmux("claude")
+			name, path := item.Worktree.Name, item.Worktree.Path
+
+			// Window already open, or nothing to set up: just open it
+			if _, open := tmux.FindWindowByName(name); open || len(m.config.Setup) == 0 {
+				if isNew, _ := tmux.OpenWorktree(name, path); isNew {
+					m.config.SendSetupAndClaudeToTmux("claude")
+				}
+				return m, nil
 			}
+
+			// Existing worktree, new window: ask whether to run setup first
+			m.showConfirm = true
+			m.confirmHeader = "Run Setup"
+			m.confirmMessage = "Run setup commands from cockpit.yml in " + confirmTargetStyle.Render(item.Worktree.Branch) + "?"
+			m.confirmHandler = func() (func() tea.Msg, error) {
+				tmux.OpenWorktree(name, path)
+				m.config.SendSetupAndClaudeToTmux("claude")
+				return nil, nil
+			}
+			m.confirmCancel = func() (func() tea.Msg, error) {
+				tmux.OpenWorktree(name, path)
+				tmux.SendKeys("claude")
+				return nil, nil
+			}
+			return m, nil
 		}
 
 	case key.Matches(msg, keys.OpenEditor):

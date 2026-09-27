@@ -55,7 +55,11 @@ func (m Model) View() string {
 		cb.WriteString("\n\n")
 		cb.WriteString(confirmHintStyle.Render("Press "))
 		cb.WriteString(helpKeyStyle.Render("y"))
-		cb.WriteString(confirmHintStyle.Render(" to confirm, any other key to cancel"))
+		hint := " to confirm, any other key to cancel"
+		if m.confirmCancel != nil {
+			hint = " to run, any other key to skip"
+		}
+		cb.WriteString(confirmHintStyle.Render(hint))
 		b.WriteString("\n\n")
 		b.WriteString(confirmPopupStyle.Render(cb.String()))
 	}
