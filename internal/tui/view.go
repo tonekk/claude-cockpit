@@ -31,24 +31,11 @@ func (m Model) View() string {
 	worktreeContent.WriteString(sectionTitleStyle.Render("Worktrees"))
 	worktreeContent.WriteString("\n\n")
 	for i, item := range m.worktreeItems {
-		isSelected := !m.inSessionsSection && i == m.cursor
+		isSelected := i == m.cursor
 		worktreeContent.WriteString(m.renderItem(item, isSelected, m.width))
 	}
 	b.WriteString(worktreeBoxStyle.Render(worktreeContent.String()))
 	b.WriteString("\n")
-
-	// Additional sessions section with border
-	if len(m.sessionItems) > 0 {
-		var sessionContent strings.Builder
-		sessionContent.WriteString(sectionTitleStyle.Render("Additional Sessions"))
-		sessionContent.WriteString("\n\n")
-		for i, session := range m.sessionItems {
-			isSelected := m.inSessionsSection && i == m.cursor
-			sessionContent.WriteString(m.renderSessionItem(session, isSelected))
-		}
-		b.WriteString(sessionBoxStyle.Render(sessionContent.String()))
-		b.WriteString("\n")
-	}
 
 	// Minimal help hint
 	b.WriteString(helpStyle.Render("[?] help  [q] quit"))
@@ -109,99 +96,6 @@ func (m Model) renderPromptPopup() string {
 	b.WriteString(helpStyle.Render("  Enter to confirm, Esc to cancel"))
 
 	return inputPopupStyle.Render(b.String())
-}
-
-// renderSessionItem renders an additional session item
-func (m Model) renderSessionItem(item SessionItem, isSelected bool) string {
-	var b strings.Builder
-
-	// Indicator
-	indicator := "▶"
-	if item.Expanded {
-		indicator = "▼"
-	}
-
-	hasWindow := m.tmuxWindows[item.Session.Path]
-
-	styledIndicator := indicator
-	if isSelected {
-		styledIndicator = selectedStyle.Render(indicator)
-	}
-
-	// First line: indicator, name, path
-	nameStyle := sessionNameStyle
-	pathStyle := sessionPathStyle
-	if !hasWindow {
-		nameStyle = dimStyle
-		pathStyle = dimStyle
-	}
-
-	line1 := fmt.Sprintf("%s %s  %s",
-		styledIndicator,
-		nameStyle.Render(item.Session.Name),
-		pathStyle.Render(item.Session.Path),
-	)
-
-	b.WriteString(line1)
-	b.WriteString("\n")
-
-	// Second line: status summary (if git repo)
-	var statusParts []string
-	if item.GitStatus != nil {
-		if item.GitStatus.Clean {
-			s := cleanStyle
-			if !hasWindow {
-				s = dimStyle
-			}
-			statusParts = append(statusParts, s.Render("✓ clean"))
-		} else {
-			totalFiles := len(item.GitStatus.Files)
-			if hasWindow {
-				statusParts = append(statusParts, fmt.Sprintf("● %d files", totalFiles))
-			} else {
-				statusParts = append(statusParts, dimStyle.Render(fmt.Sprintf("● %d files", totalFiles)))
-			}
-
-			if item.GitStatus.StagedCount > 0 {
-				s := stagedStyle
-				if !hasWindow {
-					s = dimStyle
-				}
-				statusParts = append(statusParts, s.Render(fmt.Sprintf("+%d staged", item.GitStatus.StagedCount)))
-			}
-			if item.GitStatus.ModifiedCount > 0 {
-				s := modifiedStyle
-				if !hasWindow {
-					s = dimStyle
-				}
-				statusParts = append(statusParts, s.Render(fmt.Sprintf("~%d modified", item.GitStatus.ModifiedCount)))
-			}
-			if item.GitStatus.UntrackedCount > 0 {
-				s := untrackedStyle
-				if !hasWindow {
-					s = dimStyle
-				}
-				statusParts = append(statusParts, s.Render(fmt.Sprintf("?%d untracked", item.GitStatus.UntrackedCount)))
-			}
-		}
-	} else {
-		statusParts = append(statusParts, dimStyle.Render("(not a git repo)"))
-	}
-
-	line2 := "    " + strings.Join(statusParts, "  ")
-	b.WriteString(line2)
-	b.WriteString("\n")
-
-	// Expanded file tree (if git repo with changes)
-	if item.Expanded && item.GitStatus != nil && !item.GitStatus.Clean {
-		treeLines := renderFileTree(item.GitStatus.Files)
-		for _, line := range treeLines {
-			b.WriteString("    " + line + "\n")
-		}
-	}
-
-	b.WriteString("\n")
-	return b.String()
 }
 
 // renderHelpPopup renders the help popup content

@@ -326,7 +326,6 @@ func printUsage() {
 	fmt.Println("  e        Open in editor")
 	fmt.Println("  s        Start/stop server")
 	fmt.Println("  D        Open git diff in split")
-	fmt.Println("  a        Add session")
 	fmt.Println("  w        Add worktree")
 	fmt.Println("  d        Delete worktree/session")
 	fmt.Println("  c        Config")
