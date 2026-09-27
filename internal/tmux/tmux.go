@@ -238,6 +238,9 @@ func StartServerWindow(worktreeName, workDir, serverCommand string, envVars map[
 
 	windowName := "🖥️ server: " + worktreeName
 
+	// On failure keep the window open so the user can read the output
+	finalCommand = "sh -c " + shellQuote(finalCommand) + `; rc=$?; if [ $rc -ne 0 ]; then printf '\n[server exited with code %s] press any key to close...' "$rc"; read -r -n1 _ 2>/dev/null || read -r _; fi`
+
 	// Create new window right after the cockpit window
 	cmd := exec.Command("tmux", "new-window", "-a", "-t", "🎛️ cockpit", "-n", windowName, "-c", workDir, finalCommand)
 	if err := cmd.Run(); err != nil {
@@ -387,4 +390,9 @@ func ExecIntoSession(sessionName, workDir string, extraArgs ...string) error {
 
 	// Exec into tmux attach
 	return execSyscall(tmuxPath, []string{"tmux", "attach-session", "-t", sessionName}, os.Environ())
+}
+
+// shellQuote wraps s in single quotes for use in a POSIX shell command
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
