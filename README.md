@@ -76,17 +76,6 @@ claude-cockpit -E "cursor"
 | `?` | Help |
 | `q` | Quit |
 
-## The Workflow
-
-This tool shines when combined with some Claude Code custom commands:
-
-1. **Start work**: `/branch SH-431` - creates a worktree from your issue tracker
-2. **Do the thing**: hack away with Claude
-3. **Take a break**: `/save-context` - saves your progress
-4. **Come back**: Select worktree in cockpit → Enter → `/restore-context`
-
-You'll need to set up these commands yourself (see [docs/claude-commands.md](docs/claude-commands.md)), but trust me, it's worth it.
-
 ## Sessions
 
 Not everything is a worktree. Sometimes you're working on a completely different project. That's what sessions are for.

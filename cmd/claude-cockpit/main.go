@@ -79,13 +79,16 @@ func main() {
 		panic(err)
 	}
 
-	// Resolve server command: flag > env > empty
+	// Resolve server command: flag > env > cockpit.yml > empty
 	finalServerCmd := *serverCmd
 	if finalServerCmd == "" {
 		finalServerCmd = *serverCmdLong
 	}
 	if finalServerCmd == "" {
 		finalServerCmd = os.Getenv("WD_SERVER_COMMAND")
+	}
+	if finalServerCmd == "" {
+		finalServerCmd = config.Server
 	}
 
 	// Resolve editor: flag > env > default
@@ -100,10 +103,13 @@ func main() {
 		finalEditor = "code"
 	}
 
-	// Collect server environment variables
+	// Collect server environment variables: cockpit.yml < WD_ENV_* < -e flags
 	serverEnv := make(map[string]string)
+	for k, v := range config.Env {
+		serverEnv[k] = v
+	}
 
-	// First, collect from WD_ENV_* environment variables
+	// Then, collect from WD_ENV_* environment variables
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "WD_ENV_") {
 			parts := strings.SplitN(env, "=", 2)
@@ -148,7 +154,12 @@ func main() {
 
 	// Ensure we're in a proper tmux session with correct window name
 	if needsExec, sessionName := tmux.EnsureCockpitSession(projectRoot); needsExec {
-		if err := tmux.ExecIntoSession(sessionName, projectRoot); err != nil {
+		// Forward resolved config as flags: the tmux window doesn't inherit our env/args.
+		args := []string{"-s", finalServerCmd, "-E", finalEditor}
+		for k, v := range serverEnv {
+			args = append(args, "-e", k+"="+v)
+		}
+		if err := tmux.ExecIntoSession(sessionName, projectRoot, args...); err != nil {
 			fmt.Fprintf(os.Stderr, "Error starting tmux session: %v\n", err)
 			os.Exit(1)
 		}
@@ -303,6 +314,11 @@ func printUsage() {
 	fmt.Println("  WD_SERVER_COMMAND           Server command (overridden by -s)")
 	fmt.Println("  WD_EDITOR                   Editor command (overridden by -E)")
 	fmt.Println("  WD_ENV_<KEY>                Server env vars (e.g., WD_ENV_RAILS_ENV=development)")
+	fmt.Println()
+	fmt.Println("cockpit.yml (lowest precedence):")
+	fmt.Println("  server: bin/dev             Server command")
+	fmt.Println("  env: {RAILS_ENV: development}")
+	fmt.Println("  setup: [bundle install]     Commands run before claude in new worktrees")
 	fmt.Println()
 	fmt.Println("Keys:")
 	fmt.Println("  enter    Open in tmux with Claude")

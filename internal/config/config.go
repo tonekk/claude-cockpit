@@ -13,7 +13,9 @@ import (
 )
 
 type Config struct {
-	Setup []string `yaml:"setup"`
+	Setup  []string          `yaml:"setup"`
+	Server string            `yaml:"server"` // server command, overridden by WD_SERVER_COMMAND / -s
+	Env    map[string]string `yaml:"env"`    // server env vars, overridden by WD_ENV_* / -e
 }
 
 func Load(projectPath string) (*Config, error) {
