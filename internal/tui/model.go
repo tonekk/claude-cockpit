@@ -331,9 +331,9 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Enter):
 		if m.cursor < len(m.worktreeItems) {
 			item := m.worktreeItems[m.cursor]
-			isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
-			if isNew {
-				m.config.SendSetupAndClaudeToTmux("claude")
+			// Existing worktree: no setup, resume the last Claude session
+			if isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path); isNew {
+				tmux.SendKeys("claude --resume")
 			}
 		}
 
