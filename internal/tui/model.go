@@ -118,6 +118,9 @@ type serverStateMsg struct {
 	worktreePath string
 }
 
+// resumeClaudeCmd reopens the last Claude session in an existing worktree
+const resumeClaudeCmd = "claude --resume"
+
 // getCurrentPath returns the path of the currently selected item
 func (m Model) getCurrentPath() string {
 	if m.cursor < len(m.worktreeItems) {
@@ -349,7 +352,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Window already open, or nothing to set up: just open it
 			if _, open := tmux.FindWindowByName(name); open || len(m.config.Setup) == 0 {
 				if isNew, _ := tmux.OpenWorktree(name, path); isNew {
-					m.config.SendSetupAndClaudeToTmux("claude")
+					m.config.SendSetupAndClaudeToTmux(resumeClaudeCmd)
 				}
 				return m, nil
 			}
@@ -360,12 +363,12 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.confirmMessage = "Run setup commands from cockpit.yml in " + confirmTargetStyle.Render(item.Worktree.Branch) + "?"
 			m.confirmHandler = func() (func() tea.Msg, error) {
 				tmux.OpenWorktree(name, path)
-				m.config.SendSetupAndClaudeToTmux("claude")
+				m.config.SendSetupAndClaudeToTmux(resumeClaudeCmd)
 				return nil, nil
 			}
 			m.confirmCancel = func() (func() tea.Msg, error) {
 				tmux.OpenWorktree(name, path)
-				tmux.SendKeys("claude")
+				tmux.SendKeys(resumeClaudeCmd)
 				return nil, nil
 			}
 			return m, nil
