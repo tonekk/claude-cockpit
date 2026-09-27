@@ -93,8 +93,7 @@ Flags win over `cockpit.yml`. `env` entries are merged, a `-e` flag overrides a 
 | `s` | Toggle server |
 | `D` | Open git diff in split |
 | `a` | Add worktree |
-| `x` | Delete worktree |
-| `X` | Force delete worktree (discards changes) |
+| `x` | Delete worktree (warns if it has uncommitted changes) |
 | `c` | Config |
 | `l` / `→` | Expand |
 | `h` / `←` | Collapse |

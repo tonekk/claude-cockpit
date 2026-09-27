@@ -61,26 +61,8 @@ func Create(repoPath, dirName, branchName string) error {
 	return cmd.Run()
 }
 
+// Remove discards all changes and removes the worktree
 func Remove(wt Worktree) error {
-	if wt.Branch == "main" {
-		return errors.New("can't remove main worktree")
-	}
-
-	if !wt.GitStatus.Clean {
-		return errors.New("can't remove dirty worktree")
-	}
-
-	if tmux.WindowExists(wt.Name) {
-		tmux.KillWindow(wt.Name)
-	}
-
-	cmd := exec.Command("git", "worktree", "remove", wt.Path)
-
-	return cmd.Run()
-}
-
-// ForceRemove discards all changes and removes the worktree
-func ForceRemove(wt Worktree) error {
 	if wt.Branch == "main" {
 		return errors.New("can't remove main worktree")
 	}

@@ -15,7 +15,6 @@ type KeyMap struct {
 	Help        key.Binding
 	Config      key.Binding
 	Delete      key.Binding
-	ForceDelete key.Binding
 	Diff        key.Binding
 	DiffStaged  key.Binding
 	AddWorktree key.Binding
@@ -36,7 +35,6 @@ func (km KeyMap) AllBindings() []key.Binding {
 		km.Help,
 		km.Config,
 		km.Delete,
-		km.ForceDelete,
 		km.Diff,
 		km.DiffStaged,
 		km.AddWorktree,
@@ -89,10 +87,6 @@ var keys = KeyMap{
 	Delete: key.NewBinding(
 		key.WithKeys("x"),
 		key.WithHelp("x", "delete worktree"),
-	),
-	ForceDelete: key.NewBinding(
-		key.WithKeys("X"),
-		key.WithHelp("X", "force delete worktree"),
 	),
 	Diff: key.NewBinding(
 		key.WithKeys("d"),

@@ -305,7 +305,6 @@ func printUsage() {
 	fmt.Println("  D        Open git diff in split")
 	fmt.Println("  a        Add worktree")
 	fmt.Println("  x        Delete worktree")
-	fmt.Println("  X        Force delete worktree")
 	fmt.Println("  c        Config")
 	fmt.Println("  l/→      Expand file tree")
 	fmt.Println("  h/←      Collapse file tree")

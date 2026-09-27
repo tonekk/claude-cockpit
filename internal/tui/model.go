@@ -288,16 +288,6 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case key.Matches(msg, keys.Delete):
-		m.showConfirm = true
-
-		wt := m.worktreeItems[m.cursor]
-		m.confirmHeader = "Remove Worktree"
-		m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
-		m.confirmHandler = m.removeSelectedWorktree
-
-		return m, nil
-
-	case key.Matches(msg, keys.ForceDelete):
 		if m.cursor < len(m.worktreeItems) {
 			wt := m.worktreeItems[m.cursor]
 			if wt.Worktree.Branch == "main" {
@@ -305,9 +295,12 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.showConfirm = true
-			m.confirmHeader = "Force Remove Worktree"
-			m.confirmMessage = "Discard all changes and remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
-			m.confirmHandler = m.forceRemoveSelectedWorktree
+			m.confirmHeader = "Remove Worktree"
+			m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
+			if !wt.Worktree.GitStatus.Clean {
+				m.confirmMessage = "⚠ Worktree has uncommitted changes, they will be discarded.\n" + m.confirmMessage
+			}
+			m.confirmHandler = m.removeSelectedWorktree
 		}
 		return m, nil
 
@@ -434,14 +427,6 @@ func openEditor(path, editor string) tea.Cmd {
 func (m Model) removeSelectedWorktree() (func() tea.Msg, error) {
 	wt := m.worktreeItems[m.cursor]
 	if err := worktree.Remove(wt.Worktree); err != nil {
-		return nil, err
-	}
-	return m.loadWorktrees, nil
-}
-
-func (m Model) forceRemoveSelectedWorktree() (func() tea.Msg, error) {
-	wt := m.worktreeItems[m.cursor]
-	if err := worktree.ForceRemove(wt.Worktree); err != nil {
 		return nil, err
 	}
 	return m.loadWorktrees, nil
