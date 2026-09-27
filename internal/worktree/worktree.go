@@ -47,15 +47,15 @@ func Create(repoPath, dirName, branchName string) error {
 		}
 	}
 
-	// Pull latest main before creating the worktree
-	pull := exec.Command("git", "pull")
-	pull.Dir = repoPath
-	if err := pull.Run(); err != nil {
-		return fmt.Errorf("failed to pull main: %w", err)
+	// Always branch from origin/main, regardless of what the main worktree has checked out
+	fetch := exec.Command("git", "fetch", "origin", "main")
+	fetch.Dir = repoPath
+	if err := fetch.Run(); err != nil {
+		return fmt.Errorf("failed to fetch origin/main: %w", err)
 	}
 
 	worktreePath := filepath.Join(worktreesDir, dirName)
-	cmd := exec.Command("git", "worktree", "add", "-b", branchName, worktreePath)
+	cmd := exec.Command("git", "worktree", "add", "-b", branchName, worktreePath, "origin/main")
 	cmd.Dir = repoPath
 
 	return cmd.Run()
