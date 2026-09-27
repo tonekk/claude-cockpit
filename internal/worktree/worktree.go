@@ -67,9 +67,8 @@ func Remove(wt Worktree) error {
 		return errors.New("can't remove main worktree")
 	}
 
-	if tmux.WindowExists(wt.Name) {
-		tmux.KillWindow(wt.Name)
-	}
+	// Kill the worktree window and any server/diff window living in it
+	tmux.KillWindowsInPath(wt.Path)
 
 	// Discard all tracked changes
 	restore := exec.Command("git", "restore", ".")

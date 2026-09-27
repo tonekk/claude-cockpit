@@ -134,6 +134,27 @@ func KillWindow(windowName string) error {
 	return nil
 }
 
+// KillWindowsInPath kills every tmux window whose pane is inside dir:
+// the worktree window (with any status prefix/suffix) and its server window.
+func KillWindowsInPath(dir string) error {
+	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_index}\t#{pane_current_path}")
+	output, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+	dir = filepath.Clean(dir)
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		idx, path, ok := strings.Cut(line, "\t")
+		if !ok {
+			continue
+		}
+		if path == dir || strings.HasPrefix(path, dir+string(os.PathSeparator)) {
+			_ = exec.Command("tmux", "kill-window", "-t", idx).Run()
+		}
+	}
+	return nil
+}
+
 // SetWindowStatus updates the window name suffix to reflect Claude's state.
 // status can be "running", "waiting", or "" (no suffix).
 func SetWindowStatus(name, status string) error {
