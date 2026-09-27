@@ -44,18 +44,47 @@ go build -o claude-cockpit ./cmd/claude-cockpit
 ## Usage
 
 ```bash
-# Fire it up (run from any git repo)
+# Fire it up (run from the root of any git repo)
 claude-cockpit
-
-# With a server command (press 's' to toggle)
-claude-cockpit -s "bin/rails server"
-
-# With env vars for your server
-claude-cockpit -s "npm run dev" -e "PORT=3000"
-
-# Different editor (default: code)
-claude-cockpit -E "cursor"
 ```
+
+### Parameters
+
+| Flag | What for |
+|------|----------|
+| `-s`, `--server-command <cmd>` | Command to run when you press `s` (e.g. `bin/rails server`) |
+| `-e`, `--env KEY=VALUE` | Env var for the server command. Repeatable |
+| `-E`, `--editor <cmd>` | Editor opened with `e` (default: `code`) |
+| `--list` | Print worktrees and exit, no TUI |
+| `-h`, `--help` | Show help |
+
+```bash
+claude-cockpit -s "npm run dev" -e PORT=3000 -e NODE_ENV=development -E cursor
+```
+
+### cockpit.yml
+
+Put a `cockpit.yml` in your repo root so you don't have to repeat flags:
+
+```yaml
+# Command to run when you press 's'
+server: bin/rails server
+
+# Env vars for the server command
+env:
+  PORT: 3000
+  RAILS_ENV: development
+
+# Commands run in every new worktree before Claude starts.
+# Stops and shows an error if any of them fails.
+setup:
+  - bundle install
+  - bin/rails db:setup
+```
+
+Flags win over `cockpit.yml`. `env` entries are merged, a `-e` flag overrides a key of the same name.
+
+`claude-cockpit run-setup` runs the `setup` commands in the current directory by hand.
 
 ### Keybindings
 
@@ -116,14 +145,6 @@ Want to know when Claude is waiting for you across all your sessions? Add these 
 ```
 
 Now your tmux window names show Claude's status: 🟢 when actively working, 🔴 when waiting for your input. No more wondering "wait, did Claude finish?"
-
-## Environment Variables
-
-| Variable | What for |
-|----------|----------|
-| `WD_SERVER_COMMAND` | Default server command |
-| `WD_EDITOR` | Default editor |
-| `WD_ENV_<KEY>` | Server env vars |
 
 ## Requirements
 
