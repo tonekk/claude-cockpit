@@ -87,13 +87,6 @@ var (
 	helpDescStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("252"))
 
-	sessionNameStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("141")). // purple-ish
-				Bold(true)
-
-	sessionPathStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("243"))
-
 	inputPopupStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("212")).
@@ -105,12 +98,6 @@ var (
 				BorderForeground(lipgloss.Color("39")). // cyan like issue IDs
 				Padding(0, 1).
 				MarginBottom(1)
-
-	sessionBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("141")). // purple like session names
-			Padding(0, 1).
-			MarginBottom(1)
 
 	sectionTitleStyle = lipgloss.NewStyle().
 				Bold(true).

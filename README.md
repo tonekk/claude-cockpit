@@ -19,9 +19,8 @@ A TUI dashboard for managing parallel Claude Code sessions across git worktrees 
 ## Features
 
 - 📂 **Worktree overview** - All your worktrees at a glance with git status
-- 🔄 **Session management** - Add any directory as an additional session
 - 🟢🔴 **Claude status** - Green when Claude is working, red when waiting for input
-- 🚀 **One-key tmux integration** - Jump into any session instantly
+- 🚀 **One-key tmux integration** - Jump into any worktree instantly
 - 📝 **Context restoration** - Pick up exactly where you left off
 - 🖥️ **Server window** - Run your dev server in a dedicated tmux window
 - 🔌 **Server indicator** - See which worktree has a server running right in the tmux status bar
@@ -66,21 +65,14 @@ claude-cockpit -E "cursor"
 | `e` | Open in your editor |
 | `s` | Toggle server |
 | `D` | Open git diff in split |
-| `a` | Add session |
 | `w` | Add worktree |
-| `d` | Delete worktree/session |
+| `d` | Delete worktree |
 | `c` | Config |
 | `l` / `→` | Expand |
 | `h` / `←` | Collapse |
 | `j/k` | Navigate |
 | `?` | Help |
 | `q` | Quit |
-
-## Sessions
-
-Not everything is a worktree. Sometimes you're working on a completely different project. That's what sessions are for.
-
-Press `a`, enter a path, and boom - it's in your cockpit, ready to launch. The tmux window opens immediately with Claude waiting for your command.
 
 ## Waiting Indicator Setup
 

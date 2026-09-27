@@ -2,13 +2,10 @@ package tui
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/tonekk/claude-cockpit/internal/sessions"
 	"github.com/tonekk/claude-cockpit/internal/tmux"
 	"github.com/tonekk/claude-cockpit/internal/worktree"
 )
@@ -27,7 +24,6 @@ type PromptManager struct {
 
 func NewPromptManager() PromptManager {
 	prompts := []Prompt{
-		NewPrompt("session", "Add Additional Session", "~/path/to/directory", acceptSession),
 		NewPrompt("worktreeDir", "Add Worktree - Choose directory name", "directory_name", acceptWorktreeDir),
 		NewPrompt("worktreeBranch", "Add Worktree - Choose branch name", "feature/whatever-comes-to-your-mind", acceptWorktreeBranch),
 	}
@@ -91,32 +87,6 @@ func (pm *PromptManager) activate(id string) error {
 	prompt.input.Focus()
 
 	return nil
-}
-
-func acceptSession(m Model, path string) (tea.Model, tea.Cmd) {
-	// Expand ~ to home directory
-	if strings.HasPrefix(path, "~/") {
-		home, _ := os.UserHomeDir()
-		path = filepath.Join(home, path[2:])
-	}
-	// Validate path exists
-	if _, err := os.Stat(path); err != nil {
-		m.errorMessage = fmt.Sprintf("Path does not exist: %s", path)
-		m.prompts.deactivate()
-		return m, nil
-	}
-	// Add to sessions
-	if err := sessions.Add(m.projectRoot, path); err != nil {
-		m.errorMessage = fmt.Sprintf("Error adding additional session: %v", err)
-		m.prompts.deactivate()
-		return m, nil
-	}
-	// Open tmux window with claude immediately
-	sessionName := filepath.Base(path)
-	tmux.NewWindow(sessionName, path)
-	tmux.SendKeys("claude")
-	m.prompts.deactivate()
-	return m, m.loadSessions
 }
 
 func acceptWorktreeDir(m Model, dirName string) (tea.Model, tea.Cmd) {

@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tonekk/claude-cockpit/internal/config"
-	"github.com/tonekk/claude-cockpit/internal/sessions"
 	"github.com/tonekk/claude-cockpit/internal/tmux"
 	"github.com/tonekk/claude-cockpit/internal/waiting"
 	"github.com/tonekk/claude-cockpit/internal/worktree"
@@ -30,20 +28,10 @@ type WorktreeItem struct {
 	Expanded bool
 }
 
-// SessionItem represents an additional session (non-worktree)
-type SessionItem struct {
-	Session   sessions.Session
-	TmuxOpen  bool // whether tmux window is currently open
-	Expanded  bool
-	GitStatus *worktree.Status // git status if it's a git repo
-}
-
 // Model is the bubbletea model
 type Model struct {
 	worktreeItems      []WorktreeItem
-	sessionItems       []SessionItem
 	cursor             int
-	inSessionsSection  bool // true when cursor is in additional sessions section
 	projectRoot        string
 	width              int
 	height             int
@@ -80,7 +68,6 @@ func New(projectRoot string, options Options, config config.Config) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadWorktrees,
-		m.loadSessions,
 		m.loadServerState,
 		tea.Tick(500 * time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) }),
 	)
@@ -116,37 +103,8 @@ func (m Model) loadWorktrees() tea.Msg {
 	return worktreesMsg{items}
 }
 
-func (m Model) loadSessions() tea.Msg {
-	sessionList, err := sessions.List(m.projectRoot)
-	if err != nil {
-		return nil // Ignore errors, just don't show sessions
-	}
-
-	var items []SessionItem
-	for _, s := range sessionList {
-		item := SessionItem{Session: s}
-
-		// Check if tmux window is open
-		_, item.TmuxOpen = tmux.FindWindowByName(s.Name)
-
-		// Get git status if it's a git repo
-		if _, err := os.Stat(filepath.Join(s.Path, ".git")); err == nil {
-			status, _ := worktree.GetStatus(s.Path)
-			item.GitStatus = &status
-		}
-
-		items = append(items, item)
-	}
-
-	return sessionsMsg{items}
-}
-
 type worktreesMsg struct {
 	items []WorktreeItem
-}
-
-type sessionsMsg struct {
-	items []SessionItem
 }
 
 type errMsg struct {
@@ -159,19 +117,10 @@ type serverStateMsg struct {
 	worktreePath string
 }
 
-type sessionAddedMsg struct{}
-type sessionRemovedMsg struct{}
-
 // getCurrentPath returns the path of the currently selected item
 func (m Model) getCurrentPath() string {
-	if m.inSessionsSection {
-		if m.cursor < len(m.sessionItems) {
-			return m.sessionItems[m.cursor].Session.Path
-		}
-	} else {
-		if m.cursor < len(m.worktreeItems) {
-			return m.worktreeItems[m.cursor].Worktree.Path
-		}
+	if m.cursor < len(m.worktreeItems) {
+		return m.worktreeItems[m.cursor].Worktree.Path
 	}
 	return ""
 }
@@ -201,27 +150,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.worktreeItems = msg.items
 
 		// Reset to last worktree item if all were deleted
-		if !m.inSessionsSection && m.cursor > len(m.worktreeItems)-1 {
+		if m.cursor > len(m.worktreeItems)-1 {
 			m.cursor = len(m.worktreeItems) - 1
 		}
-
-	case sessionsMsg:
-		m.sessionItems = msg.items
-
-		if m.inSessionsSection {
-			// Reset to last worktree item if all sessions were deleted
-			if len(m.sessionItems) == 0 {
-				m.inSessionsSection = false
-				m.cursor = len(m.worktreeItems) - 1
-				// Reset to last session item if last session item was deleted
-			} else if m.cursor > len(m.sessionItems)-1 {
-				m.cursor = len(m.sessionItems) - 1
-			}
-		}
-
-	case sessionAddedMsg, sessionRemovedMsg:
-		// Reload sessions after add/remove
-		return m, m.loadSessions
 
 	case errMsg:
 		m.err = msg.err
@@ -247,12 +178,6 @@ func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
 		for i := range m.worktreeItems {
 			status, _ := worktree.GetStatus(m.worktreeItems[i].Worktree.Path)
 			m.worktreeItems[i].Worktree.GitStatus = status
-		}
-		for i := range m.sessionItems {
-			if m.sessionItems[i].GitStatus != nil {
-				status, _ := worktree.GetStatus(m.sessionItems[i].Session.Path)
-				m.sessionItems[i].GitStatus = &status
-			}
 		}
 	}
 
@@ -280,24 +205,6 @@ func (m Model) handleTickMsg() (tea.Model, tea.Cmd) {
 	// Check tmux window and Claude status for all items
 	m.tmuxWindows = make(map[string]bool)
 	m.claudeStatus = make(map[string]string)
-	for i := range m.sessionItems {
-		name := m.sessionItems[i].Session.Name
-		path := m.sessionItems[i].Session.Path
-		_, m.sessionItems[i].TmuxOpen = tmux.FindWindowByName(name)
-		if m.sessionItems[i].TmuxOpen {
-			m.tmuxWindows[path] = true
-			if tmux.IsClaudeRunningInWindow(name) {
-				if m.waitingSessions[path] {
-					m.claudeStatus[path] = "waiting"
-				} else {
-					m.claudeStatus[path] = "running"
-					tmux.SetWindowStatus(name, "running")
-				}
-			} else {
-				tmux.SetWindowStatus(name, "")
-			}
-		}
-	}
 	for _, item := range m.worktreeItems {
 		name := item.Worktree.Name
 		path := item.Worktree.Path
@@ -380,29 +287,18 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showConfig = !m.showConfig
 		return m, nil
 
-	case key.Matches(msg, keys.AddSession):
-		m.prompts.activate("session")
-		return m, textinput.Blink
-
 	case key.Matches(msg, keys.Delete):
 		m.showConfirm = true
 
-		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
-			session := m.sessionItems[m.cursor]
-			m.confirmHeader = "Remove Additional Session"
-			m.confirmMessage = "Remove " + confirmTargetStyle.Render(session.Session.Name) + "?"
-			m.confirmHandler = m.removeSelectedSession
-		} else {
-			wt := m.worktreeItems[m.cursor]
-			m.confirmHeader = "Remove Worktree"
-			m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
-			m.confirmHandler = m.removeSelectedWorktree
-		}
+		wt := m.worktreeItems[m.cursor]
+		m.confirmHeader = "Remove Worktree"
+		m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
+		m.confirmHandler = m.removeSelectedWorktree
 
 		return m, nil
 
 	case key.Matches(msg, keys.ForceDelete):
-		if !m.inSessionsSection && m.cursor < len(m.worktreeItems) {
+		if m.cursor < len(m.worktreeItems) {
 			wt := m.worktreeItems[m.cursor]
 			if wt.Worktree.Branch == "main" {
 				m.errorMessage = "Can't remove main worktree"
@@ -420,62 +316,27 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 
 	case key.Matches(msg, keys.Expand):
-		if m.inSessionsSection {
-			if m.cursor < len(m.sessionItems) {
-				m.sessionItems[m.cursor].Expanded = true
-			}
-		} else if m.cursor < len(m.worktreeItems) {
+		if m.cursor < len(m.worktreeItems) {
 			m.worktreeItems[m.cursor].Expanded = true
 		}
 
 	case key.Matches(msg, keys.Collapse):
-		if m.inSessionsSection {
-			if m.cursor < len(m.sessionItems) {
-				m.sessionItems[m.cursor].Expanded = false
-			}
-		} else if m.cursor < len(m.worktreeItems) {
+		if m.cursor < len(m.worktreeItems) {
 			m.worktreeItems[m.cursor].Expanded = false
 		}
 
 	case key.Matches(msg, keys.Up):
-		if m.inSessionsSection {
-			if m.cursor > 0 {
-				m.cursor--
-			} else {
-				// Move to worktrees section
-				m.inSessionsSection = false
-				m.cursor = max(len(m.worktreeItems)-1, 0)
-			}
-		} else if m.cursor > 0 {
+		if m.cursor > 0 {
 			m.cursor--
 		}
 
 	case key.Matches(msg, keys.Down):
-		if m.inSessionsSection {
-			if m.cursor < len(m.sessionItems)-1 {
-				m.cursor++
-			}
-		} else {
-			if m.cursor < len(m.worktreeItems)-1 {
-				m.cursor++
-			} else if len(m.sessionItems) > 0 {
-				// Move to sessions section
-				m.inSessionsSection = true
-				m.cursor = 0
-			}
+		if m.cursor < len(m.worktreeItems)-1 {
+			m.cursor++
 		}
 
 	case key.Matches(msg, keys.Enter):
-		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
-			session := m.sessionItems[m.cursor]
-			// Open or switch to tmux window
-			if session.TmuxOpen {
-				tmux.SelectWindow(session.Session.Name)
-			} else {
-				tmux.NewWindow(session.Session.Name, session.Session.Path)
-				m.config.SendSetupAndClaudeToTmux("claude")
-			}
-		} else if m.cursor < len(m.worktreeItems) {
+		if m.cursor < len(m.worktreeItems) {
 			item := m.worktreeItems[m.cursor]
 			isNew, _ := tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 			if isNew {
@@ -490,7 +351,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, keys.Server):
-		if !m.inSessionsSection && m.cursor < len(m.worktreeItems) {
+		if m.cursor < len(m.worktreeItems) {
 			item := m.worktreeItems[m.cursor]
 
 			// Check if server is running in this worktree - toggle off
@@ -516,14 +377,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case key.Matches(msg, keys.Open):
-		if m.inSessionsSection && m.cursor < len(m.sessionItems) {
-			session := m.sessionItems[m.cursor]
-			if session.TmuxOpen {
-				tmux.SelectWindow(session.Session.Name)
-			} else {
-				tmux.NewWindow(session.Session.Name, session.Session.Path)
-			}
-		} else if m.cursor < len(m.worktreeItems) {
+		if m.cursor < len(m.worktreeItems) {
 			item := m.worktreeItems[m.cursor]
 			tmux.OpenWorktree(item.Worktree.Name, item.Worktree.Path)
 		}
@@ -591,12 +445,4 @@ func (m Model) forceRemoveSelectedWorktree() (func() tea.Msg, error) {
 		return nil, err
 	}
 	return m.loadWorktrees, nil
-}
-
-func (m Model) removeSelectedSession() (func() tea.Msg, error) {
-	session := m.sessionItems[m.cursor]
-	if err := sessions.Remove(m.projectRoot, session.Session); err != nil {
-		return nil, err
-	}
-	return m.loadSessions, nil
 }
