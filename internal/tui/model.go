@@ -307,7 +307,10 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.showConfirm = true
 				m.confirmHeader = "Worktree Is Open"
 				m.confirmMessage = "⚠ " + confirmTargetStyle.Render(wt.Worktree.Branch) + " has an open tmux window, Claude may be running.\nClose it and continue?"
+				path := wt.Worktree.Path
 				m.confirmHandler = func() (func() tea.Msg, error) {
+					// Kill the windows now so the user sees them go before the final confirm
+					tmux.KillWindowsInPath(path)
 					return func() tea.Msg { return askRemoveWorktreeMsg{} }, nil
 				}
 				return m, nil
