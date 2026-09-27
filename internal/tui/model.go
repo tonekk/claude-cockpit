@@ -245,14 +245,13 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 	}
 
-	// If help popup is showing, close it but continue processing the key
-	if m.showHelp {
+	// If help or config popup is showing, close it on any key.
+	// ClearScreen is needed: the popup made the view taller, and the
+	// inline renderer leaves stale lines behind when the view shrinks.
+	if m.showHelp || m.showConfig {
 		m.showHelp = false
-	}
-
-	// If config popup is showing, close it but continue processing the key
-	if m.showConfig {
 		m.showConfig = false
+		return m, tea.ClearScreen
 	}
 
 	if m.showConfirm {
