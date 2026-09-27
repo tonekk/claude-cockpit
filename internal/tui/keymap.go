@@ -103,8 +103,8 @@ var keys = KeyMap{
 		key.WithHelp("D", "open diff staged"),
 	),
 	AddWorktree: key.NewBinding(
-		key.WithKeys("w"),
-		key.WithHelp("w", "add worktree"),
+		key.WithKeys("a"),
+		key.WithHelp("a", "add worktree"),
 	),
 	Yes: key.NewBinding(
 		key.WithKeys("y"),
