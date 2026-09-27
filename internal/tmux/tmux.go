@@ -348,7 +348,7 @@ func EnsureCockpitSession(projectDir string) (needsExec bool, sessionName string
 	if idx := strings.LastIndex(projectDir, string(os.PathSeparator)); idx >= 0 {
 		basename = projectDir[idx+1:]
 	}
-	sessionName = "claude-" + basename
+	sessionName = basename + "-cc"
 
 	if IsInsideTmux() {
 		// Already in tmux, just rename the current window
