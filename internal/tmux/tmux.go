@@ -338,7 +338,8 @@ func EnsureCockpitSession(projectDir string) (needsExec bool, sessionName string
 
 // ExecIntoSession creates a new tmux session (or attaches if exists) and execs into it
 // This replaces the current process
-func ExecIntoSession(sessionName, workDir string) error {
+// extraArgs are forwarded to the re-executed cockpit process (e.g. -s, -e flags).
+func ExecIntoSession(sessionName, workDir string, extraArgs ...string) error {
 	tmuxPath, err := exec.LookPath("tmux")
 	if err != nil {
 		return err
@@ -351,14 +352,15 @@ func ExecIntoSession(sessionName, workDir string) error {
 	}
 
 	// Try to create a new session with the cockpit window, running ourselves
-	cmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-c", workDir, "-n", "🎛️ cockpit", selfPath)
+	selfCmd := append([]string{selfPath}, extraArgs...)
+	cmd := exec.Command("tmux", append([]string{"new-session", "-d", "-s", sessionName, "-c", workDir, "-n", "🎛️ cockpit"}, selfCmd...)...)
 	if err := cmd.Run(); err != nil {
 		// Session might already exist - select the cockpit window if it exists, or create it
 		if actualName, found := FindWindowByName("🎛️ cockpit"); found {
 			SelectWindow(actualName)
 		} else {
 			// Create a new window in the existing session
-			exec.Command("tmux", "new-window", "-t", sessionName, "-n", "🎛️ cockpit", "-c", workDir, selfPath).Run()
+			exec.Command("tmux", append([]string{"new-window", "-t", sessionName, "-n", "🎛️ cockpit", "-c", workDir}, selfCmd...)...).Run()
 		}
 	}
 
