@@ -21,9 +21,7 @@ A TUI dashboard for managing parallel Claude Code sessions across git worktrees 
 - 📂 **Worktree overview** - All your worktrees at a glance with git status
 - 🟢🔴 **Claude status** - Green when Claude is working, red when waiting for input
 - 🚀 **One-key tmux integration** - Jump into any worktree instantly
-- 📝 **Context restoration** - Pick up exactly where you left off
 - 🖥️ **Server window** - Run your dev server in a dedicated tmux window
-- 🔌 **Server indicator** - See which worktree has a server running right in the tmux status bar
 - 📊 **Diff view** - Open git diff in a split with one key
 
 ## Installation
@@ -94,8 +92,8 @@ Flags win over `cockpit.yml`. `env` entries are merged, a `-e` flag overrides a 
 | `e` | Open in your editor |
 | `s` | Toggle server |
 | `D` | Open git diff in split |
-| `w` | Add worktree |
-| `d` | Delete worktree |
+| `a` | Add worktree |
+| `x` | Delete worktree (warns if it has uncommitted changes) |
 | `c` | Config |
 | `l` / `→` | Expand |
 | `h` / `←` | Collapse |
