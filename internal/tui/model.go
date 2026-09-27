@@ -117,6 +117,9 @@ type serverStateMsg struct {
 	worktreePath string
 }
 
+// askRemoveWorktreeMsg shows the final remove confirmation (second step when a tmux window is open)
+type askRemoveWorktreeMsg struct{}
+
 // getCurrentPath returns the path of the currently selected item
 func (m Model) getCurrentPath() string {
 	if m.cursor < len(m.worktreeItems) {
@@ -159,6 +162,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case serverStateMsg:
 		m.serverWorktreePath = msg.worktreePath
+
+	case askRemoveWorktreeMsg:
+		if m.cursor < len(m.worktreeItems) {
+			m.askRemoveWorktree(m.worktreeItems[m.cursor])
+			return m, tea.ClearScreen
+		}
 
 	case tickMsg:
 		return m.handleTickMsg()
@@ -293,13 +302,17 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.errorMessage = "Can't remove main worktree"
 				return m, nil
 			}
-			m.showConfirm = true
-			m.confirmHeader = "Remove Worktree"
-			m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
-			if !wt.Worktree.GitStatus.Clean {
-				m.confirmMessage = "⚠ Worktree has uncommitted changes, they will be discarded.\n" + m.confirmMessage
+			// Open tmux window: Claude may be working there, ask an extra time first
+			if m.tmuxWindows[wt.Worktree.Path] {
+				m.showConfirm = true
+				m.confirmHeader = "Worktree Is Open"
+				m.confirmMessage = "⚠ " + confirmTargetStyle.Render(wt.Worktree.Branch) + " has an open tmux window, Claude may be running.\nClose it and continue?"
+				m.confirmHandler = func() (func() tea.Msg, error) {
+					return func() tea.Msg { return askRemoveWorktreeMsg{} }, nil
+				}
+				return m, nil
 			}
-			m.confirmHandler = m.removeSelectedWorktree
+			m.askRemoveWorktree(wt)
 		}
 		return m, nil
 
@@ -421,6 +434,17 @@ func openEditor(path, editor string) tea.Cmd {
 		_ = cmd.Start()
 		return nil
 	}
+}
+
+// askRemoveWorktree shows the remove confirmation for wt
+func (m *Model) askRemoveWorktree(wt WorktreeItem) {
+	m.showConfirm = true
+	m.confirmHeader = "Remove Worktree"
+	m.confirmMessage = "Remove " + confirmTargetStyle.Render(wt.Worktree.Branch) + "?"
+	if !wt.Worktree.GitStatus.Clean {
+		m.confirmMessage = "⚠ Worktree has uncommitted changes, they will be discarded.\n" + m.confirmMessage
+	}
+	m.confirmHandler = m.removeSelectedWorktree
 }
 
 func (m Model) removeSelectedWorktree() (func() tea.Msg, error) {
