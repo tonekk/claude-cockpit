@@ -37,8 +37,8 @@ func (m Model) View() string {
 	b.WriteString(worktreeBoxStyle.Render(worktreeContent.String()))
 	b.WriteString("\n")
 
-	// Minimal help hint
-	b.WriteString(helpStyle.Render("[?] help  [q] quit"))
+	// Footer with the most used keys
+	b.WriteString(helpStyle.Render("[enter] claude  [a] add  [x] delete  [?] help"))
 
 	// Prompt popup
 	if promptPopup := m.renderPromptPopup(); promptPopup != "" {
