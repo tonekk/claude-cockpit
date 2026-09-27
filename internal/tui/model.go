@@ -363,7 +363,7 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 			// Check if server command is configured
 			if m.options.ServerCommand == "" {
-				m.errorMessage = "Error: No server command configured.\nUse -s or --server-command flag, or set WD_SERVER_COMMAND"
+				m.errorMessage = "Error: No server command configured.\nUse -s or --server-command flag, or set server: in cockpit.yml"
 				return m, nil
 			}
 

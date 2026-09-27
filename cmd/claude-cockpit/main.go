@@ -79,49 +79,31 @@ func main() {
 		panic(err)
 	}
 
-	// Resolve server command: flag > env > cockpit.yml > empty
+	// Resolve server command: flag > cockpit.yml > empty
 	finalServerCmd := *serverCmd
 	if finalServerCmd == "" {
 		finalServerCmd = *serverCmdLong
 	}
 	if finalServerCmd == "" {
-		finalServerCmd = os.Getenv("WD_SERVER_COMMAND")
-	}
-	if finalServerCmd == "" {
 		finalServerCmd = config.Server
 	}
 
-	// Resolve editor: flag > env > default
+	// Resolve editor: flag > default
 	finalEditor := *editor
 	if finalEditor == "" {
 		finalEditor = *editorLong
 	}
 	if finalEditor == "" {
-		finalEditor = os.Getenv("WD_EDITOR")
-	}
-	if finalEditor == "" {
 		finalEditor = "code"
 	}
 
-	// Collect server environment variables: cockpit.yml < WD_ENV_* < -e flags
+	// Collect server environment variables: cockpit.yml < -e flags
 	serverEnv := make(map[string]string)
 	for k, v := range config.Env {
 		serverEnv[k] = v
 	}
 
-	// Then, collect from WD_ENV_* environment variables
-	for _, env := range os.Environ() {
-		if strings.HasPrefix(env, "WD_ENV_") {
-			parts := strings.SplitN(env, "=", 2)
-			if len(parts) == 2 {
-				// Strip "WD_ENV_" prefix from key
-				key := strings.TrimPrefix(parts[0], "WD_ENV_")
-				serverEnv[key] = parts[1]
-			}
-		}
-	}
-
-	// Then, apply -e/--env flags (override WD_ENV_* if same key)
+	// Apply -e/--env flags (override cockpit.yml if same key)
 	for _, e := range envFlags {
 		parts := strings.SplitN(e, "=", 2)
 		if len(parts) == 2 {
@@ -310,12 +292,7 @@ func printUsage() {
 	fmt.Println("  --list                      List worktrees without TUI")
 	fmt.Println("  -h, --help                  Show this help message")
 	fmt.Println()
-	fmt.Println("Environment variables:")
-	fmt.Println("  WD_SERVER_COMMAND           Server command (overridden by -s)")
-	fmt.Println("  WD_EDITOR                   Editor command (overridden by -E)")
-	fmt.Println("  WD_ENV_<KEY>                Server env vars (e.g., WD_ENV_RAILS_ENV=development)")
-	fmt.Println()
-	fmt.Println("cockpit.yml (lowest precedence):")
+	fmt.Println("cockpit.yml (overridden by flags):")
 	fmt.Println("  server: bin/dev             Server command")
 	fmt.Println("  env: {RAILS_ENV: development}")
 	fmt.Println("  setup: [bundle install]     Commands run before claude in new worktrees")
